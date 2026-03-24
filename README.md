@@ -27,15 +27,17 @@ Chrome-friendly replenishment dashboard for reviewing raw item/location demand a
 
 The main technical docs are:
 
+- [docs/start_here_for_programmers.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/start_here_for_programmers.md)
 - [docs/model_overview_for_programmers.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/model_overview_for_programmers.md)
 - [docs/representative_model_variations_for_ai_team.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/representative_model_variations_for_ai_team.md)
 - [docs/how_to_train_other_models_from_deviation_dash.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/how_to_train_other_models_from_deviation_dash.md)
 
 Suggested reading order:
 
-1. model overview
-2. representative cases
-3. training guide
+1. start here
+2. model overview
+3. representative cases
+4. training guide
 
 ## Run locally on Windows
 
