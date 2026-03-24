@@ -1,0 +1,2741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Item Recommendation Reasoning Guide for the AI Team</title>
+<style>
+  @page {
+    size: Letter landscape;
+    margin: 0.55in 0.55in 0.6in 0.55in;
+  }
+  :root {
+    --ink: #173b2f;
+    --muted: #4f655e;
+    --border: #bfd0c8;
+    --panel: #f5f8f6;
+    --accent: #b78537;
+    --accent-soft: #f4ead6;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    color: var(--ink);
+    font-family: Aptos, "Segoe UI", Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.42;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body {
+    padding: 0;
+  }
+  h1, h2, h3 {
+    color: var(--ink);
+    margin: 0 0 0.22in 0;
+    line-height: 1.15;
+  }
+  h1 {
+    font-size: 22pt;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.12in;
+    margin-bottom: 0.24in;
+  }
+  h2 {
+    font-size: 15pt;
+    margin-top: 0.25in;
+    padding: 0.08in 0.12in;
+    background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+    border-left: 4px solid var(--accent);
+    break-after: avoid;
+  }
+  h3 {
+    font-size: 12.5pt;
+    margin-top: 0.32in;
+    padding-top: 0.06in;
+    border-top: 1px solid var(--border);
+    page-break-before: always;
+    break-before: page;
+  }
+  h3:first-of-type {
+    page-break-before: auto;
+    break-before: auto;
+  }
+  p {
+    margin: 0 0 0.12in 0;
+  }
+  ul, ol {
+    margin: 0 0 0.14in 0.24in;
+    padding: 0;
+  }
+  li {
+    margin: 0 0 0.08in 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.14in 0 0.18in 0;
+    table-layout: fixed;
+    font-size: 8.7pt;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.07in 0.08in;
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+  th {
+    background: #e9f0ec;
+    font-weight: 700;
+    text-align: left;
+  }
+  tr:nth-child(even) td {
+    background: #fafcfb;
+  }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.94em;
+    background: #eef3ef;
+    padding: 0.02in 0.04in;
+    border-radius: 4px;
+  }
+  strong {
+    color: var(--ink);
+  }
+  blockquote {
+    margin: 0.14in 0;
+    padding: 0.10in 0.14in;
+    background: var(--panel);
+    border-left: 4px solid var(--accent);
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.2in 0;
+  }
+  .meta-note {
+    margin: 0 0 0.2in 0;
+    padding: 0.12in 0.14in;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 9.5pt;
+  }
+</style>
+</head>
+<body>
+<div class="meta-note">Prepared from <code>DataV3.xlsx</code> using the current <code>Active Demand with Active Variability</code> rules engine. This PDF is formatted for readability in planning and engineering review.</div>
+<h1>Item Recommendation Reasoning Guide for the AI Team</h1>
+<h2>Scope</h2>
+<ul>
+<li>Source workbook: <code>DataV3.xlsx</code>.</li>
+<li>Requested item list: the screenshot prefixes were matched to the exact item codes below.</li>
+<li>Recommendation method: <code>Active Demand with Active Variability</code>.</li>
+<li>Forecast mode: <code>Rules Only</code> (no AutoGluon forecast blended in for this report).</li>
+<li>Seasonality: enabled, planning season <code>Summer</code>, so only April through September demand is considered relevant for the active seasonal window.</li>
+<li>Service levels used by the calculation: <code>A=99%</code>, <code>B=92%</code>, <code>C=88%</code>, <code>D=84%</code>, <code>E=80%</code>, <code>X=80%</code>.</li>
+<li>Location <code>1</code> is treated as the DC plus a stocking location. Locations <code>115</code>, <code>116</code>, <code>117</code>, <code>118</code>, <code>119</code>, <code>30</code>, and <code>40</code> are branches. Location <code>9999</code> is ignored.</li>
+</ul>
+<h2>Screenshot Match List</h2>
+<table>
+<thead>
+<tr>
+<th>Screenshot text</th>
+<th>Matched item code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>R-134A-30</code></td>
+<td><code>R-134A-30LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-22-30LB</code></td>
+<td><code>R-22-30LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-427A-25</code></td>
+<td><code>R-427A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-404A-10...</code></td>
+<td><code>R-404A-100LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-417C-25</code></td>
+<td><code>R-417C-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-407C-25</code></td>
+<td><code>R-407C-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-410A-25</code></td>
+<td><code>R-410A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-422B-25</code></td>
+<td><code>R-422B-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-422D-25</code></td>
+<td><code>R-422D-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-448A-25</code></td>
+<td><code>R-448A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-449A-25</code></td>
+<td><code>R-449A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-290-10.6</code></td>
+<td><code>R-290-10.6OZ-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-600-10.6</code></td>
+<td><code>R-600-10.6OZ-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-407A-25</code></td>
+<td><code>R-407A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-32-20LB</code></td>
+<td><code>R-32-20LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-404A-24...</code></td>
+<td><code>R-404A-24LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-421A-25</code></td>
+<td><code>R-421A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-438A-25</code></td>
+<td><code>R-438A-25LB-REFG</code></td>
+</tr>
+<tr>
+<td><code>R-507-25L...</code></td>
+<td><code>R-507-25LB-REFG</code></td>
+</tr>
+</tbody>
+</table>
+<h2>Plain-English Rule Order</h2>
+<ol>
+<li>Ignore rows that should never drive replenishment: ignored statuses, <code>Stock with no Max</code>, and location <code>9999</code>.</li>
+<li>Pick the history window. If year-over-year demand is between <code>-33%</code> and <code>+33%</code>, use both years. Otherwise use the last 12 months.</li>
+<li>Apply seasonality. Because this report is for <code>Summer</code>, the usable months are only April through September inside the chosen history window.</li>
+<li>Build the demand signal. In <code>Active Demand with Active Variability</code>, the mean and the standard deviation both ignore zero-demand months.</li>
+<li>Blend in the product-group trend. The item mean is nudged up or down based on how the item's product group has been moving recently, but the adjustment is capped so it cannot overwhelm the item's own history.</li>
+<li>Detect intermittent branch demand. For branch locations, if demand is too sparse or too concentrated in only one or two months, the model stops treating those few sales as steady branch demand. Instead it falls back to the inclusive seasonal mean and pushes the extra spike stock back to the DC.</li>
+<li>Convert monthly demand into protection days. Protection days are <code>lead time + supplier order frequency</code>, with a floor of <code>28</code> days. If frequency is <code>Local</code>, the model treats it as <code>28</code> days.</li>
+<li>Set the branch minimum. Branch mins are demand-only coverage. They do not hold large variability buffers.</li>
+<li>Set the branch maximum. Branch maxes use the effective branch demand signal, but branch variability is not kept locally. That deviation is pooled into the DC.</li>
+<li>Set the DC minimum. Location <code>1</code> only keeps enough min stock for its own demand between replenishment cycles.</li>
+<li>Set the DC maximum. The DC/balancing location absorbs pooled branch deviation and intermittent spike stock, then is floored to the policy order-up-to level driven by lead time, frequency, and ABC service level.</li>
+<li>Respect overrides. If <code>Override = Y</code>, the current max wins and the row is flagged as an override.</li>
+</ol>
+<h2>What the programmers should mirror</h2>
+<ul>
+<li>Treat this as a hybrid of deterministic rules plus demand estimation, not as a pure black-box forecast.</li>
+<li>The most important branch-vs-DC behavior is: branches hold demand-only working stock, while the DC carries the pooled uncertainty.</li>
+<li>The most important outlier protection is the intermittent branch rule. That is what stops a branch from looking like it steadily needs <code>16</code> just because it sold <code>16</code> in one or two isolated months.</li>
+<li>If the AI team wants to learn from this engine, the best training targets are the final <code>recommended_min_amount</code> and <code>recommended_new_max</code>, while the best explanatory features are the intermediate fields shown in the item sections below.</li>
+</ul>
+<h2>Item-by-Item Reasoning</h2>
+<h3>A-GAS REFRIGERANTS | R-134A-30LB-REFG | HFC134A</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>7</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-4.0%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.00x</code> from <code>Global product group</code></li>
+<li>Company total min: <code>27</code> -&gt; <code>21</code> | company total max: <code>44</code> -&gt; <code>115</code></li>
+<li>Pooled to DC: <code>53.50</code> | absorbed by DC: <code>53.50</code> | changed locations: <code>7</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>77</code></td>
+<td style="text-align: right;"><code>9.55</code></td>
+<td style="text-align: right;"><code>9.55</code></td>
+<td style="text-align: right;"><code>13.09</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>53.50</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4.27</code></td>
+<td style="text-align: right;"><code>4.27</code></td>
+<td style="text-align: right;"><code>3.12</code></td>
+<td style="text-align: right;"><code>7.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>8.67</code></td>
+<td style="text-align: right;"><code>8.67</code></td>
+<td style="text-align: right;"><code>6.13</code></td>
+<td style="text-align: right;"><code>14.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>8.33</code></td>
+<td style="text-align: right;"><code>8.33</code></td>
+<td style="text-align: right;"><code>4.99</code></td>
+<td style="text-align: right;"><code>11.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>5.67</code></td>
+<td style="text-align: right;"><code>5.67</code></td>
+<td style="text-align: right;"><code>2.46</code></td>
+<td style="text-align: right;"><code>6.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.50</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.50</code></td>
+<td style="text-align: right;"><code>3.50</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.91</code></td>
+<td style="text-align: right;"><code>4.91</code></td>
+<td style="text-align: right;"><code>3.34</code></td>
+<td style="text-align: right;"><code>8.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.40</code></td>
+<td style="text-align: right;"><code>4.40</code></td>
+<td style="text-align: right;"><code>2.25</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>3</code> / <code>12</code> change to <code>9</code> / <code>77</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>53.50</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>39</code>. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>115</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>4</code>. The branch uses an effective demand basis of <code>4.27</code> and a variability amount of <code>3.12</code> to size the branch target, but the branch only keeps demand-only coverage. <code>7.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>116</code>: Branch location. Current min/max <code>7</code> / <code>9</code> change to <code>2</code> / <code>9</code>. The branch uses an effective demand basis of <code>8.67</code> and a variability amount of <code>6.13</code> to size the branch target, but the branch only keeps demand-only coverage. <code>14.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>117</code>: Branch location. Current min/max <code>4</code> / <code>5</code> change to <code>2</code> / <code>8</code>. The branch uses an effective demand basis of <code>8.33</code> and a variability amount of <code>4.99</code> to size the branch target, but the branch only keeps demand-only coverage. <code>11.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>118</code>: Branch location. Current min/max <code>4</code> / <code>5</code> change to <code>2</code> / <code>6</code>. The branch uses an effective demand basis of <code>5.67</code> and a variability amount of <code>2.46</code> to size the branch target, but the branch only keeps demand-only coverage. <code>6.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>119</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>0.50</code> because ADI is 4.0, the top two months account for 83% of scoped demand. <code>1.50</code> units of spike stock and <code>3.50</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.91</code> and a variability amount of <code>3.34</code> to size the branch target, but the branch only keeps demand-only coverage. <code>8.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>40</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.40</code> and a variability amount of <code>2.25</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.</p>
+<h3>A-GAS REFRIGERANTS | R-22-30LB-REFG | REFRIGERANT HCFC</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>7</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-11.4%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.00x</code> from <code>No product-group trend</code></li>
+<li>Company total min: <code>16</code> -&gt; <code>18</code> | company total max: <code>41</code> -&gt; <code>90</code></li>
+<li>Pooled to DC: <code>44.00</code> | absorbed by DC: <code>44.00</code> | changed locations: <code>5</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>24</code></td>
+<td style="text-align: right;"><code>58</code></td>
+<td style="text-align: right;"><code>7.50</code></td>
+<td style="text-align: right;"><code>7.50</code></td>
+<td style="text-align: right;"><code>6.11</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>44.00</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.89</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>8.70</code></td>
+<td style="text-align: right;"><code>8.70</code></td>
+<td style="text-align: right;"><code>4.44</code></td>
+<td style="text-align: right;"><code>10.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>5.50</code></td>
+<td style="text-align: right;"><code>5.50</code></td>
+<td style="text-align: right;"><code>3.23</code></td>
+<td style="text-align: right;"><code>8.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.73</code></td>
+<td style="text-align: right;"><code>2.73</code></td>
+<td style="text-align: right;"><code>1.68</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.57</code></td>
+<td style="text-align: right;"><code>1.57</code></td>
+<td style="text-align: right;"><code>0.71</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.40</code></td>
+<td style="text-align: right;"><code>3.40</code></td>
+<td style="text-align: right;"><code>2.86</code></td>
+<td style="text-align: right;"><code>5.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>6.18</code></td>
+<td style="text-align: right;"><code>6.18</code></td>
+<td style="text-align: right;"><code>5.71</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>6</code> / <code>24</code> change to <code>7</code> / <code>58</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>44.00</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>22</code>. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>115</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>2.00</code> and a variability amount of <code>0.89</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>116</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>3</code> / <code>9</code>. The branch uses an effective demand basis of <code>8.70</code> and a variability amount of <code>4.44</code> to size the branch target, but the branch only keeps demand-only coverage. <code>10.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>6</code>. The branch uses an effective demand basis of <code>5.50</code> and a variability amount of <code>3.23</code> to size the branch target, but the branch only keeps demand-only coverage. <code>8.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.73</code> and a variability amount of <code>1.68</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>119</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.57</code> and a variability amount of <code>0.71</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.40</code> and a variability amount of <code>2.86</code> to size the branch target, but the branch only keeps demand-only coverage. <code>5.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>40</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>2</code> / <code>6</code>. The branch uses an effective demand basis of <code>6.18</code> and a variability amount of <code>5.71</code> to size the branch target, but the branch only keeps demand-only coverage. <code>13.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.</p>
+<h3>ARKEMA, INC. | R-427A-25LB-REFG | R-22-REPLACEMENT</h3>
+<ul>
+<li>Profile: ABC <code>C</code> at <code>88%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>12</code> months | YOY <code>-46.3%</code> | rule: Year-over-year demand moved outside +/-33%, so the model uses the last 12 months.</li>
+<li>Product-group trend: <code>Flat</code> at <code>0.99x</code> from <code>Global product group</code></li>
+<li>Company total min: <code>7</code> -&gt; <code>4</code> | company total max: <code>33</code> -&gt; <code>16</code></li>
+<li>Pooled to DC: <code>10.13</code> | absorbed by DC: <code>10.13</code> | changed locations: <code>3</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>22</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>-0.01</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>10.13</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>0.83</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.83</code></td>
+<td style="text-align: right;"><code>2.50</code></td>
+<td style="text-align: right;"><code>1.95</code></td>
+<td style="text-align: right;"><code>4.65</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.83</code></td>
+<td style="text-align: right;"><code>2.50</code></td>
+<td style="text-align: right;"><code>1.95</code></td>
+<td style="text-align: right;"><code>4.65</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>2</code> / <code>22</code> change to <code>1</code> / <code>11</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>10.13</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>1</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.17</code> because it only sold in 1 of 6 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>0.83</code> units of spike stock and <code>0.83</code> total branch deviation were pushed back to the DC.<br />
+- <code>116</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>0</code> / <code>1</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>4</code> / <code>6</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.50</code> was reduced to <code>0.83</code> because it only sold in 2 of 6 scoped months, the top two months account for 100% of scoped demand. <code>1.65</code> units of spike stock and <code>4.65</code> total branch deviation were pushed back to the DC.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>0</code> / <code>1</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.50</code> was reduced to <code>0.83</code> because it only sold in 2 of 6 scoped months, the top two months account for 100% of scoped demand. <code>1.65</code> units of spike stock and <code>4.65</code> total branch deviation were pushed back to the DC.<br />
+- <code>40</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>CHEMOURS | R-404A-100LB-REFG | HP-62</h3>
+<ul>
+<li>Profile: ABC <code>D</code> at <code>84%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>12</code> months | YOY <code>100.0%</code> | rule: Year-over-year demand moved outside +/-33%, so the model uses the last 12 months.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.00x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>0</code> -&gt; <code>1</code> | company total max: <code>1</code> -&gt; <code>4</code></li>
+<li>Pooled to DC: <code>2.50</code> | absorbed by DC: <code>2.50</code> | changed locations: <code>2</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>2.50</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.50</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>-0.50</code></td>
+<td style="text-align: right;"><code>2.50</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>0</code> / <code>1</code> change to <code>0</code> / <code>3</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>2.50</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>0</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>3.00</code> was reduced to <code>0.50</code> because it only sold in 1 of 6 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>2.50</code> units of spike stock and <code>2.50</code> total branch deviation were pushed back to the DC.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>CHEMOURS | R-417C-25LB-REFG | HOT SHOT TWO R-12 MP-39 R134A R500</h3>
+<ul>
+<li>Profile: ABC <code>C</code> at <code>88%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-21.4%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.85x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>5</code> -&gt; <code>7</code> | company total max: <code>28</code> -&gt; <code>10</code></li>
+<li>Pooled to DC: <code>6.75</code> | absorbed by DC: <code>6.75</code> | changed locations: <code>4</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>-0.15</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>6.75</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.50</code></td>
+<td style="text-align: right;"><code>0.92</code></td>
+<td style="text-align: right;"><code>2.06</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.21</code></td>
+<td style="text-align: right;"><code>2.34</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.25</code></td>
+<td style="text-align: right;"><code>1.25</code></td>
+<td style="text-align: right;"><code>0.56</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.21</code></td>
+<td style="text-align: right;"><code>0.64</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.14</code></td>
+<td style="text-align: right;"><code>0.71</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>2</code> / <code>20</code> change to <code>2</code> / <code>3</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>6.75</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>2</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.50</code> was reduced to <code>0.25</code> because it only sold in 2 of 12 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>1.06</code> units of spike stock and <code>2.06</code> total branch deviation were pushed back to the DC.<br />
+- <code>116</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>3.00</code> was reduced to <code>0.25</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>2.34</code> units of spike stock and <code>2.34</code> total branch deviation were pushed back to the DC.<br />
+- <code>117</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.25</code> and a variability amount of <code>0.56</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>0</code> / <code>1</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.25</code> because ADI is 4.0. <code>0.64</code> units of spike stock and <code>0.64</code> total branch deviation were pushed back to the DC.<br />
+- <code>40</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.17</code> because it only sold in 2 of 12 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>0.71</code> units of spike stock and <code>0.71</code> total branch deviation were pushed back to the DC.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-407C-25LB-REFG | 407C SUVA REPLACE R-22</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-16.7%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.96x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>34</code> -&gt; <code>132</code> | company total max: <code>74</code> -&gt; <code>282</code></li>
+<li>Pooled to DC: <code>139.00</code> | absorbed by DC: <code>139.00</code> | changed locations: <code>8</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>44</code></td>
+<td style="text-align: right;"><code>38</code></td>
+<td style="text-align: right;"><code>151</code></td>
+<td style="text-align: right;"><code>33.00</code></td>
+<td style="text-align: right;"><code>33.00</code></td>
+<td style="text-align: right;"><code>18.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>139.00</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>9.92</code></td>
+<td style="text-align: right;"><code>9.92</code></td>
+<td style="text-align: right;"><code>5.27</code></td>
+<td style="text-align: right;"><code>15.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>16</code></td>
+<td style="text-align: right;"><code>11.50</code></td>
+<td style="text-align: right;"><code>11.50</code></td>
+<td style="text-align: right;"><code>4.97</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>29</code></td>
+<td style="text-align: right;"><code>21.75</code></td>
+<td style="text-align: right;"><code>21.75</code></td>
+<td style="text-align: right;"><code>8.47</code></td>
+<td style="text-align: right;"><code>24.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>18</code></td>
+<td style="text-align: right;"><code>13.25</code></td>
+<td style="text-align: right;"><code>13.25</code></td>
+<td style="text-align: right;"><code>6.47</code></td>
+<td style="text-align: right;"><code>18.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>7.42</code></td>
+<td style="text-align: right;"><code>7.42</code></td>
+<td style="text-align: right;"><code>6.47</code></td>
+<td style="text-align: right;"><code>18.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>21</code></td>
+<td style="text-align: right;"><code>15.33</code></td>
+<td style="text-align: right;"><code>15.33</code></td>
+<td style="text-align: right;"><code>9.35</code></td>
+<td style="text-align: right;"><code>26.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>15</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>23</code></td>
+<td style="text-align: right;"><code>16.83</code></td>
+<td style="text-align: right;"><code>16.83</code></td>
+<td style="text-align: right;"><code>9.54</code></td>
+<td style="text-align: right;"><code>25.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>9</code> / <code>38</code> change to <code>44</code> / <code>151</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>139.00</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>94</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>4</code> / <code>5</code> change to <code>9</code> / <code>14</code>. The branch uses an effective demand basis of <code>9.92</code> and a variability amount of <code>5.27</code> to size the branch target, but the branch only keeps demand-only coverage. <code>15.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>4</code> / <code>6</code> change to <code>11</code> / <code>16</code>. The branch uses an effective demand basis of <code>11.50</code> and a variability amount of <code>4.97</code> to size the branch target, but the branch only keeps demand-only coverage. <code>13.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>5</code> / <code>7</code> change to <code>20</code> / <code>29</code>. The branch uses an effective demand basis of <code>21.75</code> and a variability amount of <code>8.47</code> to size the branch target, but the branch only keeps demand-only coverage. <code>24.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>4</code> / <code>6</code> change to <code>12</code> / <code>18</code>. The branch uses an effective demand basis of <code>13.25</code> and a variability amount of <code>6.47</code> to size the branch target, but the branch only keeps demand-only coverage. <code>18.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>7</code> / <code>10</code>. The branch uses an effective demand basis of <code>7.42</code> and a variability amount of <code>6.47</code> to size the branch target, but the branch only keeps demand-only coverage. <code>18.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>4</code> / <code>6</code> change to <code>14</code> / <code>21</code>. The branch uses an effective demand basis of <code>15.33</code> and a variability amount of <code>9.35</code> to size the branch target, but the branch only keeps demand-only coverage. <code>26.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>15</code> / <code>23</code>. The branch uses an effective demand basis of <code>16.83</code> and a variability amount of <code>9.54</code> to size the branch target, but the branch only keeps demand-only coverage. <code>25.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-410A-25LB-REFG | REFRIGERANT HFC</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-25.0%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.00x</code> from <code>No product-group trend</code></li>
+<li>Company total min: <code>192</code> -&gt; <code>596</code> | company total max: <code>356</code> -&gt; <code>1,407</code></li>
+<li>Pooled to DC: <code>726.00</code> | absorbed by DC: <code>726.00</code> | changed locations: <code>8</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>36</code></td>
+<td style="text-align: right;"><code>126</code></td>
+<td style="text-align: right;"><code>159</code></td>
+<td style="text-align: right;"><code>702</code></td>
+<td style="text-align: right;"><code>90.83</code></td>
+<td style="text-align: right;"><code>90.83</code></td>
+<td style="text-align: right;"><code>38.18</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>726.00</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>19</code></td>
+<td style="text-align: right;"><code>70</code></td>
+<td style="text-align: right;"><code>24</code></td>
+<td style="text-align: right;"><code>104</code></td>
+<td style="text-align: right;"><code>75.25</code></td>
+<td style="text-align: right;"><code>75.25</code></td>
+<td style="text-align: right;"><code>45.34</code></td>
+<td style="text-align: right;"><code>124.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>43</code></td>
+<td style="text-align: right;"><code>98</code></td>
+<td style="text-align: right;"><code>54</code></td>
+<td style="text-align: right;"><code>147</code></td>
+<td style="text-align: right;"><code>105.83</code></td>
+<td style="text-align: right;"><code>105.83</code></td>
+<td style="text-align: right;"><code>80.29</code></td>
+<td style="text-align: right;"><code>219.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>25</code></td>
+<td style="text-align: right;"><code>65</code></td>
+<td style="text-align: right;"><code>32</code></td>
+<td style="text-align: right;"><code>98</code></td>
+<td style="text-align: right;"><code>70.58</code></td>
+<td style="text-align: right;"><code>70.58</code></td>
+<td style="text-align: right;"><code>14.38</code></td>
+<td style="text-align: right;"><code>40.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>33</code></td>
+<td style="text-align: right;"><code>13</code></td>
+<td style="text-align: right;"><code>50</code></td>
+<td style="text-align: right;"><code>35.58</code></td>
+<td style="text-align: right;"><code>35.58</code></td>
+<td style="text-align: right;"><code>32.66</code></td>
+<td style="text-align: right;"><code>90.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>16</code></td>
+<td style="text-align: right;"><code>29</code></td>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>43</code></td>
+<td style="text-align: right;"><code>31.08</code></td>
+<td style="text-align: right;"><code>31.08</code></td>
+<td style="text-align: right;"><code>23.98</code></td>
+<td style="text-align: right;"><code>66.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>91</code></td>
+<td style="text-align: right;"><code>25</code></td>
+<td style="text-align: right;"><code>137</code></td>
+<td style="text-align: right;"><code>98.75</code></td>
+<td style="text-align: right;"><code>98.75</code></td>
+<td style="text-align: right;"><code>34.13</code></td>
+<td style="text-align: right;"><code>94.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>23</code></td>
+<td style="text-align: right;"><code>84</code></td>
+<td style="text-align: right;"><code>29</code></td>
+<td style="text-align: right;"><code>126</code></td>
+<td style="text-align: right;"><code>90.83</code></td>
+<td style="text-align: right;"><code>90.83</code></td>
+<td style="text-align: right;"><code>34.08</code></td>
+<td style="text-align: right;"><code>93.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>36</code> / <code>159</code> change to <code>126</code> / <code>702</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>726.00</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>231</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>19</code> / <code>24</code> change to <code>70</code> / <code>104</code>. The branch uses an effective demand basis of <code>75.25</code> and a variability amount of <code>45.34</code> to size the branch target, but the branch only keeps demand-only coverage. <code>124.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>43</code> / <code>54</code> change to <code>98</code> / <code>147</code>. The branch uses an effective demand basis of <code>105.83</code> and a variability amount of <code>80.29</code> to size the branch target, but the branch only keeps demand-only coverage. <code>219.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>25</code> / <code>32</code> change to <code>65</code> / <code>98</code>. The branch uses an effective demand basis of <code>70.58</code> and a variability amount of <code>14.38</code> to size the branch target, but the branch only keeps demand-only coverage. <code>40.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>10</code> / <code>13</code> change to <code>33</code> / <code>50</code>. The branch uses an effective demand basis of <code>35.58</code> and a variability amount of <code>32.66</code> to size the branch target, but the branch only keeps demand-only coverage. <code>90.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>16</code> / <code>20</code> change to <code>29</code> / <code>43</code>. The branch uses an effective demand basis of <code>31.08</code> and a variability amount of <code>23.98</code> to size the branch target, but the branch only keeps demand-only coverage. <code>66.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>20</code> / <code>25</code> change to <code>91</code> / <code>137</code>. The branch uses an effective demand basis of <code>98.75</code> and a variability amount of <code>34.13</code> to size the branch target, but the branch only keeps demand-only coverage. <code>94.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>23</code> / <code>29</code> change to <code>84</code> / <code>126</code>. The branch uses an effective demand basis of <code>90.83</code> and a variability amount of <code>34.08</code> to size the branch target, but the branch only keeps demand-only coverage. <code>93.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-422B-25LB-REFG | NU-22B REFRIGERANT R-22 REPLMNT</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-5.6%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.96x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>7</code> -&gt; <code>21</code> | company total max: <code>20</code> -&gt; <code>30</code></li>
+<li>Pooled to DC: <code>11.96</code> | absorbed by DC: <code>11.96</code> | changed locations: <code>6</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>3.64</code></td>
+<td style="text-align: right;"><code>3.64</code></td>
+<td style="text-align: right;"><code>2.95</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>11.96</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.20</code></td>
+<td style="text-align: right;"><code>1.20</code></td>
+<td style="text-align: right;"><code>0.60</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1.80</code></td>
+<td style="text-align: right;"><code>1.80</code></td>
+<td style="text-align: right;"><code>0.57</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.33</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>0.90</code></td>
+<td style="text-align: right;"><code>1.96</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>0.80</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2.33</code></td>
+<td style="text-align: right;"><code>2.33</code></td>
+<td style="text-align: right;"><code>1.75</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.59</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>3.67</code></td>
+<td style="text-align: right;"><code>3.67</code></td>
+<td style="text-align: right;"><code>1.94</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>2</code> / <code>8</code> change to <code>5</code> / <code>10</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>11.96</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>9</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.20</code> and a variability amount of <code>0.60</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>1.80</code> and a variability amount of <code>0.57</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.33</code> was reduced to <code>0.33</code> because ADI is 4.0, the top two months account for 75% of scoped demand. <code>0.96</code> units of spike stock and <code>1.96</code> total branch deviation were pushed back to the DC.<br />
+- <code>118</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>2</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.33</code> and a variability amount of <code>0.80</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>3</code> / <code>4</code>. The branch uses an effective demand basis of <code>2.33</code> and a variability amount of <code>1.75</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.00</code> and a variability amount of <code>0.59</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>4</code> / <code>5</code>. The branch uses an effective demand basis of <code>3.67</code> and a variability amount of <code>1.94</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-422D-25LB-REFG | MO29 REFRIGERANT R-22 REPLMNT</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>12.1%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.96x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>6</code> -&gt; <code>18</code> | company total max: <code>21</code> -&gt; <code>35</code></li>
+<li>Pooled to DC: <code>13.96</code> | absorbed by DC: <code>13.96</code> | changed locations: <code>4</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>23</code></td>
+<td style="text-align: right;"><code>6.00</code></td>
+<td style="text-align: right;"><code>6.00</code></td>
+<td style="text-align: right;"><code>8.42</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>13.96</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.24</code></td>
+<td style="text-align: right;"><code>0.72</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.17</code></td>
+<td style="text-align: right;"><code>3.50</code></td>
+<td style="text-align: right;"><code>3.23</code></td>
+<td style="text-align: right;"><code>7.24</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.20</code></td>
+<td style="text-align: right;"><code>1.20</code></td>
+<td style="text-align: right;"><code>0.60</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>-0.04</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>3.60</code></td>
+<td style="text-align: right;"><code>3.60</code></td>
+<td style="text-align: right;"><code>3.05</code></td>
+<td style="text-align: right;"><code>5.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>1</code> / <code>11</code> change to <code>8</code> / <code>23</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>13.96</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>23</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.25</code> because ADI is 4.0. <code>0.72</code> units of spike stock and <code>0.72</code> total branch deviation were pushed back to the DC.<br />
+- <code>117</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>2</code>. Intermittent branch protection fired, so the raw active-demand mean <code>3.50</code> was reduced to <code>1.17</code> because the top two months account for 79% of scoped demand. <code>2.24</code> units of spike stock and <code>7.24</code> total branch deviation were pushed back to the DC.<br />
+- <code>118</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.20</code> and a variability amount of <code>0.60</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.00</code> and a variability amount of <code>-0.04</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>4</code> / <code>5</code>. The branch uses an effective demand basis of <code>3.60</code> and a variability amount of <code>3.05</code> to size the branch target, but the branch only keeps demand-only coverage. <code>5.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-448A-25LB-REFG | REFRIGERANT HFO 25LB CYLINDER</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-9.8%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.96x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>23</code> -&gt; <code>29</code> | company total max: <code>44</code> -&gt; <code>63</code></li>
+<li>Pooled to DC: <code>33.88</code> | absorbed by DC: <code>33.88</code> | changed locations: <code>6</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>15</code></td>
+<td style="text-align: right;"><code>32</code></td>
+<td style="text-align: right;"><code>4.40</code></td>
+<td style="text-align: right;"><code>4.40</code></td>
+<td style="text-align: right;"><code>3.29</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>33.88</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.29</code></td>
+<td style="text-align: right;"><code>1.29</code></td>
+<td style="text-align: right;"><code>0.72</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.11</code></td>
+<td style="text-align: right;"><code>2.11</code></td>
+<td style="text-align: right;"><code>1.56</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>4.75</code></td>
+<td style="text-align: right;"><code>4.75</code></td>
+<td style="text-align: right;"><code>3.21</code></td>
+<td style="text-align: right;"><code>10.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>8.25</code></td>
+<td style="text-align: right;"><code>8.25</code></td>
+<td style="text-align: right;"><code>3.06</code></td>
+<td style="text-align: right;"><code>9.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>0.88</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>1.15</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>2.75</code></td>
+<td style="text-align: right;"><code>2.75</code></td>
+<td style="text-align: right;"><code>1.41</code></td>
+<td style="text-align: right;"><code>5.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>4</code> / <code>15</code> change to <code>6</code> / <code>32</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>33.88</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>15</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.29</code> and a variability amount of <code>0.72</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.11</code> and a variability amount of <code>1.56</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>5</code> / <code>7</code> change to <code>5</code> / <code>7</code>. The branch uses an effective demand basis of <code>4.75</code> and a variability amount of <code>3.21</code> to size the branch target, but the branch only keeps demand-only coverage. <code>10.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>9</code> / <code>12</code> change to <code>8</code> / <code>11</code>. The branch uses an effective demand basis of <code>8.25</code> and a variability amount of <code>3.06</code> to size the branch target, but the branch only keeps demand-only coverage. <code>9.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.08</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>0.88</code> units of spike stock and <code>0.88</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.00</code> and a variability amount of <code>1.15</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>3</code> / <code>4</code>. The branch uses an effective demand basis of <code>2.75</code> and a variability amount of <code>1.41</code> to size the branch target, but the branch only keeps demand-only coverage. <code>5.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>HUDSON TECHNOLOGIES COMPANY | R-449A-25LB-REFG | OPTEON XP40</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>28</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-30.0%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Down</code> at <code>0.96x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>11</code> -&gt; <code>15</code> | company total max: <code>40</code> -&gt; <code>24</code></li>
+<li>Pooled to DC: <code>11.28</code> | absorbed by DC: <code>11.28</code> | changed locations: <code>6</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>25</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>3.50</code></td>
+<td style="text-align: right;"><code>3.50</code></td>
+<td style="text-align: right;"><code>2.26</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>11.28</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.24</code></td>
+<td style="text-align: right;"><code>0.72</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1.83</code></td>
+<td style="text-align: right;"><code>1.83</code></td>
+<td style="text-align: right;"><code>0.74</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.16</code></td>
+<td style="text-align: right;"><code>0.80</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.37</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.16</code></td>
+<td style="text-align: right;"><code>1.76</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.20</code></td>
+<td style="text-align: right;"><code>2.20</code></td>
+<td style="text-align: right;"><code>1.15</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.50</code></td>
+<td style="text-align: right;"><code>1.50</code></td>
+<td style="text-align: right;"><code>1.20</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>3</code> / <code>25</code> change to <code>5</code> / <code>11</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>11.28</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>8</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.25</code> because ADI is 4.0. <code>0.72</code> units of spike stock and <code>0.72</code> total branch deviation were pushed back to the DC.<br />
+- <code>116</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>1.83</code> and a variability amount of <code>0.74</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.17</code> because it only sold in 2 of 12 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>0.80</code> units of spike stock and <code>0.80</code> total branch deviation were pushed back to the DC.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.00</code> and a variability amount of <code>1.37</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>0.17</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>1.76</code> units of spike stock and <code>1.76</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.20</code> and a variability amount of <code>1.15</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.50</code> and a variability amount of <code>1.20</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>NU-CALGON | R-290-10.6OZ-REFG | R-290-10.6OZ CAN</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>14.9%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Up</code> at <code>1.11x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>43</code> -&gt; <code>21</code> | company total max: <code>56</code> -&gt; <code>56</code></li>
+<li>Pooled to DC: <code>20.01</code> | absorbed by DC: <code>20.01</code> | changed locations: <code>6</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>28</code></td>
+<td style="text-align: right;"><code>4.73</code></td>
+<td style="text-align: right;"><code>4.73</code></td>
+<td style="text-align: right;"><code>3.30</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>20.01</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.73</code></td>
+<td style="text-align: right;"><code>4.73</code></td>
+<td style="text-align: right;"><code>3.16</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.58</code></td>
+<td style="text-align: right;"><code>4.58</code></td>
+<td style="text-align: right;"><code>2.22</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.11</code></td>
+<td style="text-align: right;"><code>3.11</code></td>
+<td style="text-align: right;"><code>2.81</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>5.36</code></td>
+<td style="text-align: right;"><code>5.36</code></td>
+<td style="text-align: right;"><code>2.22</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.09</code></td>
+<td style="text-align: right;"><code>1.01</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.64</code></td>
+<td style="text-align: right;"><code>2.64</code></td>
+<td style="text-align: right;"><code>1.35</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.73</code></td>
+<td style="text-align: right;"><code>3.73</code></td>
+<td style="text-align: right;"><code>2.95</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>11</code> / <code>14</code> change to <code>5</code> / <code>28</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>20.01</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>9</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>7</code> / <code>8</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.73</code> and a variability amount of <code>3.16</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>8</code> / <code>10</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.58</code> and a variability amount of <code>2.22</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.11</code> and a variability amount of <code>2.81</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>7</code> / <code>9</code> change to <code>3</code> / <code>6</code>. The branch uses an effective demand basis of <code>5.36</code> and a variability amount of <code>2.22</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.08</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>1.01</code> units of spike stock and <code>1.01</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>5</code> / <code>7</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.64</code> and a variability amount of <code>1.35</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.73</code> and a variability amount of <code>2.95</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>NU-CALGON | R-600-10.6OZ-REFG | R-600 10.6OZ CAN</h3>
+<ul>
+<li>Profile: ABC <code>C</code> at <code>88%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>26.9%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Up</code> at <code>1.11x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>13</code> -&gt; <code>10</code> | company total max: <code>20</code> -&gt; <code>26</code></li>
+<li>Pooled to DC: <code>10.22</code> | absorbed by DC: <code>10.22</code> | changed locations: <code>2</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>2.89</code></td>
+<td style="text-align: right;"><code>2.89</code></td>
+<td style="text-align: right;"><code>1.89</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>10.22</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.71</code></td>
+<td style="text-align: right;"><code>2.71</code></td>
+<td style="text-align: right;"><code>1.11</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.62</code></td>
+<td style="text-align: right;"><code>3.62</code></td>
+<td style="text-align: right;"><code>2.45</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.08</code></td>
+<td style="text-align: right;"><code>3.25</code></td>
+<td style="text-align: right;"><code>2.26</code></td>
+<td style="text-align: right;"><code>4.40</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.28</code></td>
+<td style="text-align: right;"><code>0.83</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.25</code></td>
+<td style="text-align: right;"><code>1.25</code></td>
+<td style="text-align: right;"><code>0.88</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>3</code> / <code>4</code> change to <code>3</code> / <code>14</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>10.22</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>5</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>5</code> / <code>7</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.71</code> and a variability amount of <code>1.11</code> to size the branch target, but the branch only keeps demand-only coverage. <code>2.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.62</code> and a variability amount of <code>2.45</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. Intermittent branch protection fired, so the raw active-demand mean <code>3.25</code> was reduced to <code>1.08</code> because the top two months account for 77% of scoped demand. <code>2.40</code> units of spike stock and <code>4.40</code> total branch deviation were pushed back to the DC.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.25</code> because ADI is 4.0. <code>0.83</code> units of spike stock and <code>0.83</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.25</code> and a variability amount of <code>0.88</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>RGAS LLC | R-407A-25LB-REFG | REFG R404A/R507 REPLACEMENT</h3>
+<ul>
+<li>Profile: ABC <code>C</code> at <code>88%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>7</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>6.0%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.00x</code> from <code>Global product group</code></li>
+<li>Company total min: <code>6</code> -&gt; <code>8</code> | company total max: <code>21</code> -&gt; <code>21</code></li>
+<li>Pooled to DC: <code>11.27</code> | absorbed by DC: <code>11.27</code> | changed locations: <code>2</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>11.27</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>0.85</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>0.92</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>0.92</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3.10</code></td>
+<td style="text-align: right;"><code>3.10</code></td>
+<td style="text-align: right;"><code>2.62</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.50</code></td>
+<td style="text-align: right;"><code>0.96</code></td>
+<td style="text-align: right;"><code>2.25</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.17</code></td>
+<td style="text-align: right;"><code>1.84</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.67</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.82</code></td>
+<td style="text-align: right;"><code>2.34</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>2</code> / <code>10</code> change to <code>1</code> / <code>11</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>11.27</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>1</code>. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>115</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.33</code> and a variability amount of <code>0.85</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.08</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>0.92</code> units of spike stock and <code>0.92</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.08</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>0.92</code> units of spike stock and <code>0.92</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>3</code>. The branch uses an effective demand basis of <code>3.10</code> and a variability amount of <code>2.62</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.50</code> was reduced to <code>0.25</code> because it only sold in 2 of 12 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>1.25</code> units of spike stock and <code>2.25</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>0.17</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>1.84</code> units of spike stock and <code>1.84</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.<br />
+- <code>40</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>0.67</code> because the top two months account for 75% of scoped demand. <code>1.34</code> units of spike stock and <code>2.34</code> total branch deviation were pushed back to the DC. The protection window was floored up to <code>28</code> days from a raw <code>21</code> days.</p>
+<h3>iGAS USA, inc | R-32-20LB-REFG | REFRIGERANT R32</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>12</code> months | YOY <code>311.1%</code> | rule: Year-over-year demand moved outside +/-33%, so the model uses the last 12 months.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.01x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>17</code> -&gt; <code>14</code> | company total max: <code>61</code> -&gt; <code>59</code></li>
+<li>Pooled to DC: <code>33.77</code> | absorbed by DC: <code>33.77</code> | changed locations: <code>3</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>40</code></td>
+<td style="text-align: right;"><code>39</code></td>
+<td style="text-align: right;"><code>3.20</code></td>
+<td style="text-align: right;"><code>3.20</code></td>
+<td style="text-align: right;"><code>2.50</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>33.77</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.17</code></td>
+<td style="text-align: right;"><code>1.75</code></td>
+<td style="text-align: right;"><code>1.13</code></td>
+<td style="text-align: right;"><code>2.59</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.67</code></td>
+<td style="text-align: right;"><code>3.67</code></td>
+<td style="text-align: right;"><code>1.76</code></td>
+<td style="text-align: right;"><code>5.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.80</code></td>
+<td style="text-align: right;"><code>1.80</code></td>
+<td style="text-align: right;"><code>1.12</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>1.74</code></td>
+<td style="text-align: right;"><code>5.01</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1.17</code></td>
+<td style="text-align: right;"><code>2.33</code></td>
+<td style="text-align: right;"><code>1.33</code></td>
+<td style="text-align: right;"><code>3.17</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.80</code></td>
+<td style="text-align: right;"><code>4.80</code></td>
+<td style="text-align: right;"><code>3.60</code></td>
+<td style="text-align: right;"><code>8.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4.17</code></td>
+<td style="text-align: right;"><code>4.17</code></td>
+<td style="text-align: right;"><code>3.32</code></td>
+<td style="text-align: right;"><code>7.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>3</code> / <code>40</code> change to <code>3</code> / <code>39</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>33.77</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>9</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.75</code> was reduced to <code>1.17</code> because the top two months account for 71% of scoped demand. <code>0.59</code> units of spike stock and <code>2.59</code> total branch deviation were pushed back to the DC.<br />
+- <code>116</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.67</code> and a variability amount of <code>1.76</code> to size the branch target, but the branch only keeps demand-only coverage. <code>5.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. The branch uses an effective demand basis of <code>1.80</code> and a variability amount of <code>1.12</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>1.00</code> because the top two months account for 83% of scoped demand. <code>1.01</code> units of spike stock and <code>5.01</code> total branch deviation were pushed back to the DC.<br />
+- <code>119</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>2</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.33</code> was reduced to <code>1.17</code> because the top two months account for 86% of scoped demand. <code>1.17</code> units of spike stock and <code>3.17</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.80</code> and a variability amount of <code>3.60</code> to size the branch target, but the branch only keeps demand-only coverage. <code>8.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>4.17</code> and a variability amount of <code>3.32</code> to size the branch target, but the branch only keeps demand-only coverage. <code>7.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>iGAS USA, inc | R-404A-24LB-REFG | HP-62</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-17.7%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.01x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>110</code> -&gt; <code>86</code> | company total max: <code>166</code> -&gt; <code>265</code></li>
+<li>Pooled to DC: <code>95.00</code> | absorbed by DC: <code>95.00</code> | changed locations: <code>8</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>27</code></td>
+<td style="text-align: right;"><code>30</code></td>
+<td style="text-align: right;"><code>59</code></td>
+<td style="text-align: right;"><code>151</code></td>
+<td style="text-align: right;"><code>32.00</code></td>
+<td style="text-align: right;"><code>32.00</code></td>
+<td style="text-align: right;"><code>24.02</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>95.00</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>12.00</code></td>
+<td style="text-align: right;"><code>12.00</code></td>
+<td style="text-align: right;"><code>2.86</code></td>
+<td style="text-align: right;"><code>6.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>25</code></td>
+<td style="text-align: right;"><code>21</code></td>
+<td style="text-align: right;"><code>20.50</code></td>
+<td style="text-align: right;"><code>20.50</code></td>
+<td style="text-align: right;"><code>6.19</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>11</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>19</code></td>
+<td style="text-align: right;"><code>19.08</code></td>
+<td style="text-align: right;"><code>19.08</code></td>
+<td style="text-align: right;"><code>11.69</code></td>
+<td style="text-align: right;"><code>25.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>22</code></td>
+<td style="text-align: right;"><code>15</code></td>
+<td style="text-align: right;"><code>28</code></td>
+<td style="text-align: right;"><code>32</code></td>
+<td style="text-align: right;"><code>31.25</code></td>
+<td style="text-align: right;"><code>31.25</code></td>
+<td style="text-align: right;"><code>12.08</code></td>
+<td style="text-align: right;"><code>25.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.20</code></td>
+<td style="text-align: right;"><code>2.20</code></td>
+<td style="text-align: right;"><code>1.98</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>13</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>14.25</code></td>
+<td style="text-align: right;"><code>14.25</code></td>
+<td style="text-align: right;"><code>5.04</code></td>
+<td style="text-align: right;"><code>10.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>9</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>13</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>6.20</code></td>
+<td style="text-align: right;"><code>13.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>27</code> / <code>59</code> change to <code>30</code> / <code>151</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>95.00</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>83</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>8</code> / <code>11</code> change to <code>6</code> / <code>12</code>. The branch uses an effective demand basis of <code>12.00</code> and a variability amount of <code>2.86</code> to size the branch target, but the branch only keeps demand-only coverage. <code>6.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>20</code> / <code>25</code> change to <code>10</code> / <code>21</code>. The branch uses an effective demand basis of <code>20.50</code> and a variability amount of <code>6.19</code> to size the branch target, but the branch only keeps demand-only coverage. <code>13.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>11</code> / <code>14</code> change to <code>9</code> / <code>19</code>. The branch uses an effective demand basis of <code>19.08</code> and a variability amount of <code>11.69</code> to size the branch target, but the branch only keeps demand-only coverage. <code>25.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>22</code> / <code>28</code> change to <code>15</code> / <code>32</code>. The branch uses an effective demand basis of <code>31.25</code> and a variability amount of <code>12.08</code> to size the branch target, but the branch only keeps demand-only coverage. <code>25.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.20</code> and a variability amount of <code>1.98</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>10</code> / <code>13</code> change to <code>7</code> / <code>14</code>. The branch uses an effective demand basis of <code>14.25</code> and a variability amount of <code>5.04</code> to size the branch target, but the branch only keeps demand-only coverage. <code>10.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>9</code> / <code>12</code> change to <code>7</code> / <code>13</code>. The branch uses an effective demand basis of <code>13.00</code> and a variability amount of <code>6.20</code> to size the branch target, but the branch only keeps demand-only coverage. <code>13.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>iGAS USA, inc | R-421A-25LB-REFG | STD CYLINDER DYNATEMP CHOICE</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-28.1%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.01x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>8</code> -&gt; <code>17</code> | company total max: <code>21</code> -&gt; <code>41</code></li>
+<li>Pooled to DC: <code>15.19</code> | absorbed by DC: <code>15.19</code> | changed locations: <code>7</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>21</code></td>
+<td style="text-align: right;"><code>3.60</code></td>
+<td style="text-align: right;"><code>3.60</code></td>
+<td style="text-align: right;"><code>1.91</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>15.19</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.92</code></td>
+<td style="text-align: right;"><code>4.92</code></td>
+<td style="text-align: right;"><code>2.21</code></td>
+<td style="text-align: right;"><code>3.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.29</code></td>
+<td style="text-align: right;"><code>2.29</code></td>
+<td style="text-align: right;"><code>1.69</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>4.60</code></td>
+<td style="text-align: right;"><code>4.60</code></td>
+<td style="text-align: right;"><code>2.85</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>1.00</code></td>
+<td style="text-align: right;"><code>0.08</code></td>
+<td style="text-align: right;"><code>0.93</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>5.33</code></td>
+<td style="text-align: right;"><code>5.33</code></td>
+<td style="text-align: right;"><code>3.10</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.25</code></td>
+<td style="text-align: right;"><code>1.50</code></td>
+<td style="text-align: right;"><code>0.96</code></td>
+<td style="text-align: right;"><code>2.26</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>2</code> / <code>10</code> change to <code>4</code> / <code>21</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>15.19</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>7</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.92</code> and a variability amount of <code>2.21</code> to size the branch target, but the branch only keeps demand-only coverage. <code>3.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>2</code> / <code>3</code>. The branch uses an effective demand basis of <code>2.29</code> and a variability amount of <code>1.69</code> to size the branch target, but the branch only keeps demand-only coverage. <code>1.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>4.60</code> and a variability amount of <code>2.85</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.00</code> was reduced to <code>0.08</code> because it only sold in 1 of 12 scoped months, ADI is 12.0, the top two months account for 100% of scoped demand. <code>0.93</code> units of spike stock and <code>0.93</code> total branch deviation were pushed back to the DC.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>3</code> / <code>5</code>. The branch uses an effective demand basis of <code>5.33</code> and a variability amount of <code>3.10</code> to size the branch target, but the branch only keeps demand-only coverage. <code>4.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>1.50</code> was reduced to <code>0.25</code> because it only sold in 2 of 12 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>1.26</code> units of spike stock and <code>2.26</code> total branch deviation were pushed back to the DC.</p>
+<h3>iGAS USA, inc | R-438A-25LB-REFG | MO99 R-22 REPLACEMENT A.C</h3>
+<ul>
+<li>Profile: ABC <code>A</code> at <code>99%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>24</code> months | YOY <code>-3.4%</code> | rule: Year-over-year demand stayed within +/-33%, so both years are used.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.01x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>39</code> -&gt; <code>82</code> | company total max: <code>88</code> -&gt; <code>303</code></li>
+<li>Pooled to DC: <code>132.00</code> | absorbed by DC: <code>132.00</code> | changed locations: <code>8</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>18</code></td>
+<td style="text-align: right;"><code>44</code></td>
+<td style="text-align: right;"><code>168</code></td>
+<td style="text-align: right;"><code>18.75</code></td>
+<td style="text-align: right;"><code>18.75</code></td>
+<td style="text-align: right;"><code>17.08</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>132.00</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>17</code></td>
+<td style="text-align: right;"><code>16.33</code></td>
+<td style="text-align: right;"><code>16.33</code></td>
+<td style="text-align: right;"><code>8.59</code></td>
+<td style="text-align: right;"><code>19.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;"><code>30</code></td>
+<td style="text-align: right;"><code>29.75</code></td>
+<td style="text-align: right;"><code>29.75</code></td>
+<td style="text-align: right;"><code>9.96</code></td>
+<td style="text-align: right;"><code>20.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>13</code></td>
+<td style="text-align: right;"><code>14</code></td>
+<td style="text-align: right;"><code>17</code></td>
+<td style="text-align: right;"><code>29</code></td>
+<td style="text-align: right;"><code>29.00</code></td>
+<td style="text-align: right;"><code>29.00</code></td>
+<td style="text-align: right;"><code>11.93</code></td>
+<td style="text-align: right;"><code>24.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>6.58</code></td>
+<td style="text-align: right;"><code>6.58</code></td>
+<td style="text-align: right;"><code>2.89</code></td>
+<td style="text-align: right;"><code>7.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>3.30</code></td>
+<td style="text-align: right;"><code>3.30</code></td>
+<td style="text-align: right;"><code>3.17</code></td>
+<td style="text-align: right;"><code>6.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>6</code></td>
+<td style="text-align: right;"><code>22</code></td>
+<td style="text-align: right;"><code>21.42</code></td>
+<td style="text-align: right;"><code>21.42</code></td>
+<td style="text-align: right;"><code>8.77</code></td>
+<td style="text-align: right;"><code>19.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>26</code></td>
+<td style="text-align: right;"><code>25.75</code></td>
+<td style="text-align: right;"><code>25.75</code></td>
+<td style="text-align: right;"><code>17.13</code></td>
+<td style="text-align: right;"><code>37.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>7</code> / <code>44</code> change to <code>18</code> / <code>168</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>132.00</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>56</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>3</code> / <code>4</code> change to <code>8</code> / <code>17</code>. The branch uses an effective demand basis of <code>16.33</code> and a variability amount of <code>8.59</code> to size the branch target, but the branch only keeps demand-only coverage. <code>19.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>6</code> / <code>8</code> change to <code>14</code> / <code>30</code>. The branch uses an effective demand basis of <code>29.75</code> and a variability amount of <code>9.96</code> to size the branch target, but the branch only keeps demand-only coverage. <code>20.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>13</code> / <code>17</code> change to <code>14</code> / <code>29</code>. The branch uses an effective demand basis of <code>29.00</code> and a variability amount of <code>11.93</code> to size the branch target, but the branch only keeps demand-only coverage. <code>24.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>4</code> / <code>7</code>. The branch uses an effective demand basis of <code>6.58</code> and a variability amount of <code>2.89</code> to size the branch target, but the branch only keeps demand-only coverage. <code>7.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>2</code> / <code>4</code>. The branch uses an effective demand basis of <code>3.30</code> and a variability amount of <code>3.17</code> to size the branch target, but the branch only keeps demand-only coverage. <code>6.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>30</code>: Branch location. Current min/max <code>4</code> / <code>6</code> change to <code>10</code> / <code>22</code>. The branch uses an effective demand basis of <code>21.42</code> and a variability amount of <code>8.77</code> to size the branch target, but the branch only keeps demand-only coverage. <code>19.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>4</code> / <code>5</code> change to <code>12</code> / <code>26</code>. The branch uses an effective demand basis of <code>25.75</code> and a variability amount of <code>17.13</code> to size the branch target, but the branch only keeps demand-only coverage. <code>37.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+<h3>iGAS USA, inc | R-507-25LB-REFG | AZ-50 R-507A</h3>
+<ul>
+<li>Profile: ABC <code>B</code> at <code>92%</code> service level | season <code>Summer</code> | frequency <code>2 Weeks</code> (<code>14</code> days) | lead time <code>14</code> days | planning season <code>Summer</code></li>
+<li>Reference window: <code>12</code> months | YOY <code>-74.4%</code> | rule: Year-over-year demand moved outside +/-33%, so the model uses the last 12 months.</li>
+<li>Product-group trend: <code>Flat</code> at <code>1.01x</code> from <code>Supplier product group</code></li>
+<li>Company total min: <code>8</code> -&gt; <code>7</code> | company total max: <code>29</code> -&gt; <code>24</code></li>
+<li>Pooled to DC: <code>15.10</code> | absorbed by DC: <code>15.10</code> | changed locations: <code>4</code> of <code>8</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th style="text-align: right;">Current Min</th>
+<th style="text-align: right;">New Min</th>
+<th style="text-align: right;">Current Max</th>
+<th style="text-align: right;">New Max</th>
+<th style="text-align: right;">Mean Used</th>
+<th style="text-align: right;">Raw Mean</th>
+<th style="text-align: right;">Total Dev</th>
+<th style="text-align: right;">Pooled to DC</th>
+<th style="text-align: right;">Absorbed by DC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>21</code></td>
+<td style="text-align: right;"><code>18</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>4.00</code></td>
+<td style="text-align: right;"><code>0.03</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>15.10</code></td>
+</tr>
+<tr>
+<td><code>115</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>116</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>117</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.33</code></td>
+<td style="text-align: right;"><code>2.00</code></td>
+<td style="text-align: right;"><code>0.34</code></td>
+<td style="text-align: right;"><code>1.68</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>118</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>119</code></td>
+<td style="text-align: right;"><code>1</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td style="text-align: right;"><code>2.67</code></td>
+<td style="text-align: right;"><code>16.00</code></td>
+<td style="text-align: right;"><code>-0.32</code></td>
+<td style="text-align: right;"><code>13.42</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>30</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+<tr>
+<td><code>40</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+<td style="text-align: right;"><code>0.00</code></td>
+</tr>
+</tbody>
+</table>
+<p>Location reasoning:<br />
+- <code>1</code>: DC / balancing location. Current min/max <code>4</code> / <code>21</code> change to <code>4</code> / <code>18</code>. The DC min only covers location 1's own protected-cycle demand. The DC max absorbs <code>15.10</code> units of pooled branch uncertainty and is floored to policy order-up-to <code>4</code>.<br />
+- <code>115</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>116</code>: Branch location. Current min/max <code>0</code> / <code>1</code> change to <code>0</code> / <code>1</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>117</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>1</code> / <code>1</code>. Intermittent branch protection fired, so the raw active-demand mean <code>2.00</code> was reduced to <code>0.33</code> because it only sold in 1 of 6 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>1.68</code> units of spike stock and <code>1.68</code> total branch deviation were pushed back to the DC.<br />
+- <code>118</code>: Branch location. Current min/max <code>2</code> / <code>3</code> change to <code>0</code> / <code>1</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>119</code>: Branch location. Current min/max <code>1</code> / <code>2</code> change to <code>2</code> / <code>3</code>. Intermittent branch protection fired, so the raw active-demand mean <code>16.00</code> was reduced to <code>2.67</code> because it only sold in 1 of 6 scoped months, ADI is 6.0, the top two months account for 100% of scoped demand. <code>13.42</code> units of spike stock and <code>13.42</code> total branch deviation were pushed back to the DC.<br />
+- <code>30</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.<br />
+- <code>40</code>: Branch location. Current min/max <code>0</code> / <code>0</code> change to <code>0</code> / <code>0</code>. The branch uses an effective demand basis of <code>0.00</code> and a variability amount of <code>0.00</code> to size the branch target, but the branch only keeps demand-only coverage. <code>0.00</code> units of deviation are intentionally not held here and are pooled to the DC instead.</p>
+</body>
+</html>

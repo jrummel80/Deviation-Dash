@@ -1,0 +1,28 @@
+# Python / virtualenv
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.pyc
+*.pyo
+
+# Local app/runtime state
+.streamlit/
+.cache/
+*.log
+
+# Local editor / OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Training artifacts / generated model output
+models/
+
+# Local workbook data files
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+!DataV5.xlsx
