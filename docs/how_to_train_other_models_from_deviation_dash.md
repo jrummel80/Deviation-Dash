@@ -2,310 +2,182 @@
 
 ## Purpose
 
-This guide explains how to use the current Deviation Dash engine as a **teacher model** for other machine-learning models.
+This guide explains how to use the current Deviation Dash engine as a teacher for other forecasting or recommendation models.
 
-The key idea is:
-
-- the current app already contains a large amount of business knowledge
-- that knowledge can be turned into labels, features, and guardrails for new models
-- not every part of the current engine should be learned the same way
-
-The strongest design is usually a **hybrid**:
+The short version:
 
 - learn demand where learning helps
-- keep hard business rules as explicit policy constraints
-- use the current model as the source of training targets and explanations
+- keep hard inventory-policy rules explicit
+- use the current engine to generate labeled training data
 
-## What The Current Model Already Knows
+If another team wants one sentence to remember, it should be:
 
-The current Deviation Dash engine is not just a simple average calculator. It already combines:
+> Use this engine as a versioned teacher, not as a bag of ad hoc spreadsheet outputs.
 
-- status-based ignore rules
+## The Recommended Architecture
+
+The safest architecture is still a hybrid:
+
+1. A learned model estimates demand.
+2. The deterministic rules engine converts demand into min/max.
+3. Optional explanation or ranking models sit on top.
+
+This is better than training a black box to guess min and max directly because the current engine already contains a large amount of policy logic that is not really "forecasting."
+
+## What The Current Engine Already Knows
+
+The current engine already encodes:
+
+- ignored statuses and ignored locations
 - branch vs DC behavior
-- supplier frequency and lead time
-- service level by ABC class
-- seasonality
-- year-over-year reference-window logic
-- intermittent-demand protection
-- low-cost deviation handling
+- supplier-specific hub policy
+- DC-location overrides
+- service level by `ABC`
+- lead-time and frequency coverage
+- seasonality and current replenishment-window ramp
+- spike normalization
+- intermittent branch protection
+- project-spike suppression
+- regional handling
+- non-stockable location blocks
+- single-stocked-branch hold
+- low-cost local deviation handling
 - supplier minimum amount floors
 - manual overrides
-- branch-zero-max and DC-zero-max alerts
 
-That means it is already a valuable **teacher**.
+That means the engine is already a strong teacher even before any machine learning is added.
 
-## The Best Ways To Use This Model
+## What Should Stay Hard-Coded
 
-There are four realistic ways to use the current engine to train other models.
+These should generally remain explicit policy rules, not learned behavior:
 
-## 1. Train A Demand Model, Then Keep The Rules
+- ignored statuses
+- ignored location `9999`
+- supplier DC overrides
+- non-hub-managed suppliers
+- `Regional` stocking policy
+- `Stockable != Y` restrictions
+- manual overrides
+- supplier minimum amount floors
+- location ordering
+- minimum `28` day protection rule
+- branch/DC alert rules
 
-This is the best first path.
+Why:
 
-How it works:
+- these are business decisions
+- they may change because management wants them changed
+- they need to remain auditable
 
-- Train a model to predict near-term demand.
-- Feed that demand into the existing rules engine.
-- Let the existing engine still decide min/max, override behavior, regional behavior, supplier minimums, and alerts.
+## What Is Worth Learning
 
-Why this is best:
+These are the best candidates for machine learning:
 
-- demand is the part most worth learning
-- policy is the part least safe to leave to a black box
-- it is easier to validate and explain
-
-Good model types:
-
-- AutoGluon TimeSeries
-- XGBoost / LightGBM on engineered time-series features
-- TemporalFusionTransformer or another sequence model if the team wants more complexity
-
-Best prediction targets:
-
-- next 1 month demand
-- next 2 to 3 months demand
+- near-term demand
 - expected demand over the current protection window
+- seasonal shape
+- product-group trend influence
+- probability a demand pattern is intermittent
+- probability a buyer later overrides the recommendation
+- probability that a row is actually a non-replenishment signal
 
-## 2. Train A Rule-Mimic Model
+## Best Ways To Use The Current Engine
 
-This means training a model to reproduce the current engine's outputs directly.
+There are three realistic use cases.
+
+## 1. Forecast + Rules
+
+This is the best first production path.
+
+Flow:
+
+- train a demand model
+- feed forecast demand into the current rules engine
+- keep the final policy layer explicit
+
+Best for:
+
+- production safety
+- explainability
+- controlled rollout
+
+## 2. Rule-Mimic Model
+
+This trains a student model to reproduce the current engine's outputs.
 
 Typical targets:
 
 - `recommended_min_amount`
 - `recommended_new_max`
-- `branch_zero_max_recommendation_alert`
-- `dc_pooling_zero_max_alert`
-- `regional_zero_max_branch_pool_applied`
+- alert flags
+- selected intermediate rule outputs
 
-Why this can help:
+Best for:
 
-- gives the team a faster surrogate model
-- useful for model comparison and distillation
-- useful if the team wants to reproduce the current engine in another stack
+- speed
+- portability to another stack
+- comparing a learned surrogate to the deterministic teacher
 
 Main caution:
 
-- this teaches the model policy-adjusted outputs, not pure demand
-- if the inputs miss important rule context, the mimic model will look unstable or contradictory
+- if the feature set does not include enough policy context, the student will look unstable
 
-## 3. Train A Human-Decision Model
+## 3. Explanation / Review Model
 
-This only becomes strong if you also have planner actions over time.
+This should not replace replenishment math.
 
-Targets:
+Use it to:
 
-- whether a buyer accepted the recommendation
-- how much they changed min/max
-- whether an override was added later
-- downstream outcomes such as stockout, fill rate, turns, or excess
-
-This is the best path if you want the new model to learn not just the engine, but how buyers actually refine it.
-
-## 4. Train An Explanation Model
-
-This model would not replace the stocking logic.
-
-It would:
-
-- explain recommendations in plain English
+- explain why the recommendation was made
 - summarize which rules fired
-- call out risk factors
-- translate model outputs for planners
+- flag rows that deserve buyer review
 
-This is a strong use case for an LLM, but it should sit on top of the deterministic or learned replenishment engine, not replace it.
+This is a good place for an LLM.
 
-## Recommended Architecture
+## Recommended Targets
 
-For your environment, I would recommend this order:
+Do not create only one label.
 
-1. Keep the current rule engine as the source of truth.
-2. Train a demand model.
-3. Feed the demand model into the current rules.
-4. Log both the raw demand forecast and the final rule-adjusted min/max.
-5. Only after that, consider a mimic model or an explanation model.
+Build a layered teacher dataset.
 
-In plain language:
-
-- learn the uncertain part
-- keep the policy part explicit
-
-## What Should Stay Hard-Coded
-
-These rules should usually stay outside the learned model:
-
-- ignored statuses
-- location `9999` ignore rule
-- `Regional` branch zero-max rule
-- manual overrides
-- supplier minimum amount floors
-- branch-zero-max alerting
-- DC-zero-max alerting
-- low-cost local deviation threshold
-- location ordering and DC designation
-
-Why:
-
-- these are business policy decisions
-- they may change by management decision, not because demand changed
-- they must remain auditable
-
-## What Is Safe To Learn
-
-These parts are good candidates for machine learning:
-
-- expected demand by location
-- expected demand over lead time
-- expected demand over the protection window
-- seasonal ramp shape
-- product-group trend influence
-- whether branch demand is likely intermittent
-- whether a recommendation will later be overridden by a buyer
-
-## Recommended Training Targets
-
-Use different targets for different model types.
-
-### Demand-first model
-
-Use:
-
-- next month usage
-- next 2 or 3 months usage
-- demand over `lead_time + frequency`
-
-### Rule-mimic model
-
-Use:
+### Final-output targets
 
 - `recommended_min_amount`
 - `recommended_new_max`
 - `recommended_min_delta`
 - `recommendation_delta`
 
-Also train separate classification heads for:
+### Intermediate targets
 
-- `intermittent_branch_protection_applied`
+- `filtered_mean`
+- `filtered_std_dev`
+- `reference_window_months`
 - `seasonal_ramp_applied`
-- `regional_zero_max_branch_pool_applied`
+- `highest_outlier_removed`
+- `two_point_spike_normalized`
+- `intermittent_branch_protection_applied`
+- `project_spike_suppressed`
+- `single_period_pool_guard_applied`
+- `regional_sparse_pool_suppressed`
+- `dc_sparse_active_mean_fallback_applied`
+- `deviation_pooled_to_dc`
+- `deviation_absorbed_by_dc`
+
+### Policy / alert targets
+
 - `branch_zero_max_recommendation_alert`
 - `dc_pooling_zero_max_alert`
-- `low_cost_local_deviation_applied`
+- `regional_zero_max_branch_pool_applied`
+- `non_stockable_location_blocked`
 - `supplier_min_amount_floor_applied`
 - `override_flag`
 
-### Ranking model
+Why this matters:
 
-Use:
+- final targets tell you what the teacher decided
+- intermediate targets tell you why
 
-- probability the buyer accepts the recommendation
-- expected size of the buyer adjustment
-- risk of future override
-
-## The Main Training Tables To Build
-
-You already have almost everything needed in the app.
-
-From the raw workbook:
-
-- supplier
-- item
-- location
-- status
-- ABC
-- season
-- MAC
-- frequency
-- lead time
-- min
-- max
-- override fields
-- `S. Min Amt`
-- all 24 monthly usage columns
-
-From the current engine:
-
-- filtered means and std devs
-- reference window decision
-- seasonal ramp fields
-- intermittent-demand fields
-- pooled deviation fields
-- policy floors
-- final min/max targets
-- alert flags
-
-## How To Extract Teacher Data From This Repo
-
-The current repo already exposes the key pieces.
-
-### Load the workbook
-
-Use [`deviation_dash/data_loader.py`](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/deviation_dash/data_loader.py), especially:
-
-- `load_data_workbook(...)`
-
-This returns:
-
-- normalized raw data
-- detected `monthly_columns`
-
-### Run the current recommendation engine
-
-Use [`deviation_dash/recommendations.py`](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/deviation_dash/recommendations.py), especially:
-
-- `METHOD_LOOKUP`
-- `SeasonalityConfig`
-- `calculate_method(...)`
-
-Important detail:
-
-- `calculate_method(...)` returns `location_detail` first and `item_summary` second
-
-### Example extraction code
-
-```python
-from datetime import date
-from pathlib import Path
-
-from deviation_dash.acceleration import detect_acceleration
-from deviation_dash.data_loader import load_data_workbook
-from deviation_dash.recommendations import (
-    DEFAULT_SERVICE_LEVELS,
-    METHOD_LOOKUP,
-    SeasonalityConfig,
-    calculate_method,
-)
-
-workbook_path = Path("DataV3.xlsx")
-loaded = load_data_workbook(
-    workbook_path.read_bytes(),
-    source_name=workbook_path.name,
-)
-
-location_detail, item_summary = calculate_method(
-    loaded.data,
-    loaded.monthly_columns,
-    METHOD_LOOKUP["excl_0_devmean_24_round"],
-    seasonality=SeasonalityConfig(
-        enabled=True,
-        planning_season="Summer",
-        as_of_date=date(2026, 3, 23),
-    ),
-    acceleration=detect_acceleration(prefer_gpu=False),
-    forecast_lookup=None,
-    service_levels=dict(DEFAULT_SERVICE_LEVELS),
-    cheap_local_deviation_threshold=1.0,
-    remove_highest_outlier_enabled=False,
-    highest_outlier_threshold_pct=200.0,
-)
-```
-
-This gives you two very useful training tables:
-
-- `location_detail`: one row per supplier-item-location recommendation
-- `item_summary`: one row per supplier-item summary
-
-## Recommended Feature Sets
+## Recommended Feature Groups
 
 ## 1. Raw demand history
 
@@ -314,325 +186,261 @@ Use:
 - all 24 monthly columns
 - rolling 3, 6, 12, and 24 month totals
 - recent vs prior year totals
-- count of non-zero months
+- non-zero month count
+- top month value
+- second-highest month value
+- demand concentration ratios
+
+## 2. Time-series structure
+
+Use:
+
+- month of year
 - last non-zero month
-- max month usage
-- average of non-zero months
-
-## 2. Intermittent-demand features
-
-Use:
-
-- active-month count
-- ADI
-- top-two-month concentration
-- zero ratio
-- largest month / median non-zero month
-- branch vs DC flag
-
-These are especially important for reproducing the intermittent branch protection logic.
-
-## 3. Seasonality features
-
-Use:
-
-- month-of-year usage profile
+- months since last demand
 - item season
 - planning season
-- current month
 - distance to seasonal peak
-- month-specific seasonal factors
-- product-group seasonality
+
+## 3. Intermittent-demand features
+
+Use:
+
+- ADI
+- top-two-month share
+- zero ratio
+- highest month vs median of other active months
+- highest month vs second-highest month
 
 ## 4. Policy features
 
 Use:
 
-- status
+- `Status`
 - whether status contains `Regional`
-- ABC class
+- `ABC`
 - service level percentage
-- frequency
-- frequency days
-- lead time
-- protection days
-- MAC
+- `Frequency`
+- `Lead Time`
+- computed protection days
+- `MAC`
 - `S. Min Amt`
-- current min
-- current max
-- override flag
-- DC vs branch flag
+- `Stockable`
+- `Override`
+- current `Min`
+- current `Max`
 
 ## 5. Network features
 
 Use:
 
-- company total demand for the item
+- branch vs DC flag
+- designated DC location
+- number of stocked locations
+- company item total demand
 - branch share of company demand
-- total deviation pooled to DC
-- current DC max
-- current DC min
-- number of stocked branches
-- number of zero-max branches
+- current DC min/max
+- pooled variance to DC
 
-## Best Labeling Strategy
+## What To Learn First
 
-Do not create only one label.
+If the programmers are starting from scratch, I would build these in order:
 
-Build a layered teacher dataset:
+1. teacher-data exporter
+2. baseline demand model
+3. hybrid forecast + rules pipeline
+4. rule-mimic model
+5. explanation model
 
-### Row-level labels
+That order keeps the high-risk policy layer explicit while still letting the team improve demand quality.
 
-- final `recommended_min_amount`
-- final `recommended_new_max`
-- final alert flags
+## How To Generate Teacher Data From This Repo
 
-### Intermediate labels
+The current repo already exposes the needed entry points.
 
-- `filtered_mean`
-- `filtered_std_dev`
-- `reference_window_months`
-- `seasonal_ramp_applied`
-- `intermittent_branch_protection_applied`
-- `deviation_pooled_to_dc`
-- `deviation_absorbed_by_dc`
+### Workbook loading
 
-Why this matters:
+Use [data_loader.py](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/deviation_dash/data_loader.py):
 
-- intermediate labels make debugging much easier
-- they let the team see where the learned model diverges
-- they make it possible to train smaller models for specific sub-decisions
+- `load_data_workbook(...)`
 
-## Best Modeling Patterns
+That returns:
 
-## Pattern A: Forecast + rules
+- normalized data
+- detected monthly columns
 
-Train:
+### Recommendation generation
 
-- a forecasting model for demand
+Use [recommendations.py](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/deviation_dash/recommendations.py):
 
-Keep explicit:
+- `METHODS`
+- `SeasonalityConfig`
+- `calculate_method(...)`
 
-- all downstream policy logic
+Important return order:
 
-Best for:
+- `detail` first
+- `summary` second
 
-- production safety
-- explainability
-- easier rollout
+### Example teacher extraction
 
-## Pattern B: Multi-head student model
+```python
+from datetime import date
+from pathlib import Path
 
-Train one model with multiple outputs:
+from deviation_dash.acceleration import detect_acceleration
+from deviation_dash.data_loader import load_data_workbook
+from deviation_dash.recommendations import (
+    METHODS,
+    SeasonalityConfig,
+    calculate_method,
+)
 
-- min regression head
-- max regression head
-- intermittent flag classifier
-- seasonal ramp classifier
-- alert classifiers
+workbook_path = Path("DataV5.xlsx")
+loaded = load_data_workbook(
+    workbook_path.read_bytes(),
+    source_name=workbook_path.name,
+)
 
-Best for:
+detail, summary = calculate_method(
+    loaded.data,
+    loaded.monthly_columns,
+    METHODS[0],  # Active Demand with Active Variability
+    seasonality=SeasonalityConfig(
+        enabled=True,
+        planning_season="Summer",
+        as_of_date=date(2026, 3, 24),
+    ),
+    acceleration=detect_acceleration(prefer_gpu=False),
+    forecast_lookup=None,
+    service_levels=None,
+    cheap_local_deviation_threshold=1.0,
+    remove_highest_outlier_enabled=True,
+    highest_outlier_threshold_pct=200.0,
+)
+```
 
-- faster inference
-- mimicking the teacher engine
+## Version The Teacher Configuration
 
-Main caution:
+This is critical.
 
-- requires strong feature engineering
-- easier to drift away from business rules if not constrained
+When building training data, always stamp the configuration used to create it:
 
-## Pattern C: Two-stage model
+- method key
+- seasonality on/off
+- planning season
+- as-of date
+- highest-month threshold
+- cheap-local-deviation threshold
+- service levels
+- forecast mode
+- code version / commit
 
-Stage 1:
+Without this, the team will mix teacher outputs created under different business-rule settings and the dataset will become inconsistent.
 
-- predict demand class or item behavior class
+## Evaluation Strategy
 
-Stage 2:
+Do not evaluate only one number.
 
-- use specialized models for each class
+Use multiple views:
 
-Examples:
-
-- intermittent items
-- steady items
-- strong seasonal items
-- low-cost items
-- regional items
-
-This often works better than forcing one model to learn every behavior equally.
-
-## How To Split The Data
-
-Use more than one evaluation split.
-
-### Time split
-
-Train on older months and validate on newer months.
-
-This is the most important split because replenishment is a forward-looking problem.
-
-### Item holdout split
-
-Hold out entire items.
-
-This shows whether the model can generalize to new item histories.
-
-### Supplier holdout split
-
-Hold out some suppliers.
-
-This tests whether the model depends too heavily on supplier-specific patterns.
-
-### Cold-start split
-
-Create a special set for:
-
-- few non-zero months
-- zero-max branches
-- regional items
-- override items
-
-These are the edge cases that usually break first.
-
-## How To Evaluate The New Models
-
-Do not measure only one metric.
-
-Use:
+### Regression metrics
 
 - MAE on `recommended_min_amount`
 - MAE on `recommended_new_max`
-- exact-match rate on alert flags
-- precision/recall on intermittent-demand detection
-- precision/recall on regional branch zero-max handling
-- error on pooled-to-DC quantities
-- sign accuracy on min/max deltas
+- MAE on pooled DC amounts
 
-Also track business-facing metrics:
+### Classification metrics
 
-- stockout rate
+- precision/recall for intermittent-demand flags
+- precision/recall for project-spike suppression
+- precision/recall for regional branch handling
+- exact match rate for zero-max alerts
+
+### Business metrics
+
+- stockouts
 - fill rate
 - turns
 - excess inventory
-- percent of buyer overrides after model recommendation
+- buyer overrides after recommendation
 
-## A Practical Training Workflow
+## Recommended Modeling Patterns
 
-## Step 1. Freeze a teacher configuration
+## Pattern A: demand model + rules
 
-Choose one official teacher setup:
+Good first model choices:
 
-- active method
-- service levels
-- seasonality settings
-- low-cost threshold
-- highest-month normalization setting
+- AutoGluon TimeSeries
+- XGBoost / LightGBM on engineered features
+- TFT or another sequence model if the team wants more complexity
 
-Do not let these drift while the team is building its first training set.
+Target options:
 
-## Step 2. Generate teacher outputs for many snapshots
+- next month usage
+- next 2-3 month usage
+- expected demand over protection days
 
-For each historical workbook snapshot:
+## Pattern B: multi-head mimic model
 
-- load raw data
-- run the current engine
-- save raw rows
-- save location-level outputs
-- save item-level summaries
-- stamp the configuration version used
+A single model can predict:
 
-This gives you a reproducible supervised-learning dataset.
+- min
+- max
+- intermittent flag
+- project-spike flag
+- DC alert flags
 
-## Step 3. Build a feature store
+This is useful as a surrogate, but it should still be compared against the teacher's intermediate logic.
 
-Store:
+## Pattern C: staged model family
 
-- raw workbook columns
-- derived demand statistics
-- rule intermediate values
-- final outputs
+Stage 1:
 
-Keep every row keyed by:
+- classify item behavior
 
-- supplier
-- item
-- location
-- snapshot date
+Stage 2:
 
-## Step 4. Train a simple baseline first
+- use specialized models for:
+  - steady items
+  - intermittent items
+  - strongly seasonal items
+  - regional items
+  - sparse / edge-case items
 
-Start with:
-
-- XGBoost or LightGBM for min/max regression
-- XGBoost or LightGBM classifiers for key flags
-
-Do this before a deep model.
-
-It will show whether the dataset is behaving logically.
-
-## Step 5. Add a demand model
-
-Use:
-
-- AutoGluon TimeSeries if the team wants a strong out-of-the-box forecaster
-- or a custom model if they want tighter control
-
-Then compare:
-
-- teacher-only engine
-- forecast + rules
-- pure mimic model
-
-## Step 6. Compare against buyer behavior
-
-If you have buyer edits and override history, compare:
-
-- teacher output vs buyer final decision
-- learned model vs buyer final decision
-
-This is where the project becomes truly intelligent instead of just a rule clone.
+This often works better than forcing one model to learn every behavior equally.
 
 ## What Not To Do
 
 - Do not train only on final max with no rule context.
-- Do not let the model learn overrides as if they are demand.
-- Do not mix different teacher configurations without versioning them.
-- Do not evaluate only average numeric error.
+- Do not treat overrides as if they are ordinary demand.
+- Do not mix teacher outputs from multiple configurations without versioning them.
+- Do not judge success only by average numeric error.
 - Do not replace hard policy rules with a black box too early.
-
-## Recommended First Deliverables For Your Programmers
-
-I would ask the team to build these in order:
-
-1. A dataset generator that runs the current engine and exports teacher rows.
-2. A baseline min/max mimic model.
-3. A separate intermittent-demand classifier.
-4. A demand forecast model.
-5. A hybrid forecast + rules pipeline.
-6. A comparison dashboard showing teacher vs student vs buyer decision.
 
 ## Best End State
 
-The best final design is likely:
+The strongest long-term setup is likely:
 
 - a learned demand model
-- the current business-rule layer kept explicit
-- a learned explanation layer on top
-- buyer feedback logged and used for future retraining
+- the current explicit business-rule layer
+- an explanation / review layer on top
+- buyer feedback logged for retraining
 
-That gives you:
+That gives the team:
 
 - better forecasting
-- safe policy control
-- good explainability
-- a path to continuous improvement
+- safer policy control
+- better explainability
+- a stable way to compare model changes over time
 
-## Short Version
+## Practical Summary
 
-If the team only remembers one thing, it should be this:
+If the programmers only remember the implementation strategy, it should be:
 
-- use the current engine as a teacher
-- learn demand, not policy
-- keep hard rules explicit
-- train on both intermediate logic and final outputs
-- compare everything against real buyer decisions when possible
+1. freeze a teacher configuration
+2. generate teacher datasets from historical snapshots
+3. learn demand first
+4. keep policy explicit
+5. train on both intermediate logic and final outputs
+6. compare every learned model against both the teacher and real buyer behavior

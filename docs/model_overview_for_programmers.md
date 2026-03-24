@@ -2,79 +2,185 @@
 
 ## Purpose
 
-This model is a deterministic replenishment engine. It does not "guess" min and max settings directly from a black-box model. Instead, it:
+Deviation Dash is a deterministic replenishment engine.
 
-1. Reads raw item-location demand history from the workbook `Data` tab.
-2. Builds a demand signal for each `supplier + item + location`.
-3. Applies business rules for seasonality, lead time, supplier order frequency, ABC service level, branch/DC behavior, overrides, and spike suppression.
-4. Produces recommended min and max values by location.
+It does not directly ask a model to "guess min and max."
+Instead, it:
 
-The dashboard can optionally use an AutoGluon forecast as the demand input, but the stocking logic is still rule-based.
+1. Loads raw workbook history at `supplier + item + location`.
+2. Converts that history into a demand signal.
+3. Applies explicit business-policy rules.
+4. Produces recommended min/max values plus explanation flags.
+
+The dashboard can optionally use an AutoGluon forecast as the demand input, but the replenishment policy layer is still rule-based.
+
+## What The Model Is Optimizing
+
+At a high level, the engine is trying to answer two different questions:
+
+- What does this location likely need for the next replenishment window?
+- Where should uncertainty be held: at the branch, at the DC, or nowhere at all?
+
+That is why the model has both:
+
+- a demand-estimation layer
+- a stocking-footprint / policy layer
+
+## Current Reference Run
+
+The current source-of-truth configuration used for explanation and validation is:
+
+- Workbook: `DataV5.xlsx`
+- Method: `Active Demand with Active Variability`
+- Forecast mode: `Rules Only`
+- Seasonality: `On`
+- Planning season: `Summer`
+- As-of date: `2026-03-24`
+- Highest-month normalization: `On`
+- Highest-month threshold: `200%`
+- Low-cost local deviation threshold: `$1.00 MAC`
+- Service levels:
+  - `A = 99%`
+  - `B = 92%`
+  - `C = 88%`
+  - `D = 84%`
+  - `E = 80%`
+  - `X = 80%`
+
+That run currently produces:
+
+- `8,159` item summaries
+- `65,532` location-detail rows
+
+Rule-hit counts from that same run:
+
+- `5,174` rows with highest-month normalization
+- `147` rows with two-point intermittent spike normalization
+- `11,265` rows with intermittent branch protection
+- `153` rows with project-spike suppression
+- `264` rows with single-period pool guard
+- `241` rows with sparse regional pool suppression
+- `1,601` rows with DC sparse active-mean fallback
+- `13,047` rows with supplier minimum amount floors
+- `6,102` rows affected by single-stocked-branch hold
+- `582` rows blocked because the location is not stockable
 
 ## Calculation Grain
 
-- Primary grouping: `supplier + item`
-- Recommendation grain: `supplier + item + location`
+- Grouping grain: `supplier + item`
+- Output grain: `supplier + item + location`
 - Summary grain: one row per `supplier + item`
 
-## Core Inputs
+Locations are ordered like this:
 
-Important workbook columns used by the model:
+- `1`
+- `30`
+- `40`
+- `115`
+- `116`
+- `117`
+- `118`
+- `119`
 
-- `Supplier`, `Item`, `Description`, `Location`
-- `Status`, `Season`, `ABC`, `Prod Group`
-- `Frequency`, `Lead Time`
-- `Min`, `Max`, `Net QOH`
-- `Override`, `Per`, `Oride Date`
-- `S. Min Amt`
-- `MAC`
-- `Stockable`
-- 24 monthly demand columns like `Mar-26`, `Feb-26`, etc.
+Location `9999` is ignored before recommendations are built.
 
-## High-Level Flow
+## Key Input Columns
+
+The engine mainly depends on these workbook columns:
+
+- identity:
+  - `Supplier`
+  - `Item`
+  - `Description`
+  - `Location`
+- policy:
+  - `Status`
+  - `Season`
+  - `ABC`
+  - `Prod Group`
+  - `Stockable`
+  - `Override`
+  - `Per`
+  - `Oride Date`
+  - `S. Min Amt`
+  - `MAC`
+- replenishment timing:
+  - `Frequency`
+  - `Lead Time`
+- current stocking state:
+  - `Min`
+  - `Max`
+  - `Net QOH`
+- demand history:
+  - the 24 monthly columns like `Mar-26`, `Feb-26`, and so on
+
+## End-To-End Flow
 
 ```text
 load workbook
--> normalize raw data
--> ignore excluded rows
+-> normalize columns and monthly history
+-> remove ignored rows
 -> net negative months backward
--> choose reference window (12 vs 24 months)
--> apply season window if enabled
--> normalize spikes / intermittent demand
+-> choose supplier/DC policy
+-> choose 12-month vs 24-month reference window
+-> apply planning-season scope
+-> normalize obvious outlier months
+-> detect intermittent / sparse demand
 -> optionally blend product-group trend
--> optionally apply current replenishment-window seasonal ramp
--> convert monthly demand into policy min/max floors
--> apply branch/DC pooling rules
--> apply overrides, supplier mins, stockability, and stocking-footprint gates
--> finalize recommended min/max per location
+-> optionally use current replenishment-window seasonal ramp
+-> compute demand-only and service-level floors
+-> build branch recommendations
+-> decide what deviation stays local vs pools to DC
+-> build DC / balancing recommendation
+-> apply final policy constraints
+-> emit min/max + flags + explanations
 ```
 
-## Step 1: Global Row Filtering
+## Layer 1: Global Filtering
 
-These rows are removed before recommendations are built:
+Rows are removed up front when they should never drive replenishment:
 
-- Location `9999`
-- Status in `Service`, `Ok to Sell Below Cost`, `Special`, `Inactive`, `Substitute`, `Exception`
-- `Stock` rows with no max
+- location `9999`
+- status in:
+  - `Service`
+  - `Ok to Sell Below Cost`
+  - `Special`
+  - `Inactive`
+  - `Substitute`
+  - `Exception`
+- `Stock` rows when max is blank or zero
 
-## Step 2: Negative Usage Handling
+This filtering happens before demand math, so ignored rows do not distort averages, variance, or DC pooling.
 
-Negative monthly usage is treated as returns, not demand.
+## Layer 2: Negative Usage Handling
 
-- A negative month is netted backward against the closest earlier positive month for the same `supplier + item + location`
-- Lookback limit is 12 months
-- If no earlier positive month exists, the negative amount is dropped from replenishment math
+Negative usage is treated as returns or reversals, not replenishment demand.
 
-This keeps returns from inflating variability or creating DC stock.
+Current rule:
 
-## Step 3: Supplier Inventory Policy
+- process months from oldest to newest
+- when a month is negative, net it backward against the closest earlier positive month(s)
+- only look back 12 months
+- if there is still leftover negative amount after that, drop it from replenishment math
 
-Default DC is location `1`, except:
+Business intent:
 
-- `HAILIANG AMERICA` -> DC is `118`
-- `REFLECTIX` -> DC is `119`
+- keep net usage realistic
+- do not let return months create fake volatility
+- do not let negative months push stock into the DC
 
-These suppliers are treated as non-hub-managed, so no DC pooling is allowed:
+## Layer 3: Supplier Inventory Policy
+
+Default DC:
+
+- location `1`
+
+Supplier-specific DC overrides:
+
+- `HAILIANG AMERICA` -> location `118`
+- `REFLECTIX` -> location `119`
+
+Suppliers that do not pool to a DC at all:
 
 - `M&M MANUFACTURING`
 - `ATCO RUBBER`
@@ -82,21 +188,29 @@ These suppliers are treated as non-hub-managed, so no DC pooling is allowed:
 - `CONKLIN METAL INDUSTRIES`
 - `RYERSON & SON, JOSEPH T.`
 
-## Step 4: Reference Window Selection
+When a supplier is marked non-hub-managed:
 
-The model compares company demand over:
+- variability stays local
+- no DC absorption logic is used
+
+## Layer 4: Reference Window Selection
+
+The engine compares:
 
 - recent 12 months
 - prior 12 months
 
 Rule:
 
-- if YOY change is between `-33%` and `+33%`, use 24 months
-- otherwise use 12 months
+- if YOY change stays between `-33%` and `+33%`, use `24` months
+- otherwise use `12` months
 
-This reference window controls what history is considered "current."
+Business intent:
 
-## Step 5: Seasonality
+- stable items use more history
+- trending items use more recent history
+
+## Layer 5: Seasonality And Replenishment Window Focus
 
 Season definitions:
 
@@ -105,68 +219,157 @@ Season definitions:
 
 When seasonality is enabled:
 
-- demand is scoped to the planning season
-- if the item has enough seasonal history, the model uses the next protected replenishment window instead of the full season average
-- if history is too thin or intermittent, it stays on the full seasonal view
+- the model scopes demand to the planning season
+- if history is thin, it keeps the whole-season view
+- if history is strong enough, it uses a forward-looking replenishment window instead of a full-season average
 
-Current-window seasonal ramp turns the model into "what do I need for the next replenishment cycle?" instead of "what is the season average?"
+This makes the engine answer:
 
-## Step 6: Product-Group Trend
+- "what do I need for the next cycle?"
 
-The model can nudge item demand using `Prod Group` trend.
+instead of:
 
-- It first tries supplier-specific product-group trend
-- If that is too small, it falls back to global product-group trend
-- The trend factor is damped and clipped to the range `0.85x` to `1.15x`
+- "what is the average for the whole season?"
 
-This is a light bias, not a hard override.
+## Layer 6: Product-Group Trend
 
-## Step 7: Demand Methods
+The engine can lightly nudge the item mean using `Prod Group` trend.
 
-The dashboard still supports three historical methods:
+Rules:
+
+- prefer `supplier + prod_group` trend
+- fall back to global `prod_group` trend
+- clip the adjustment to `0.85x` through `1.15x`
+
+Intent:
+
+- allow a modest directional signal
+- prevent category trend from overwhelming the item itself
+
+## Layer 7: Base Demand Method
+
+The dashboard still supports multiple historical methods, but the rule set has been tuned mainly around:
 
 - `Active Demand with Active Variability`
-- `Recent Mean with Active Variability`
-- `Recent Mean with Full Variability`
 
-Most of the spike and branch/DC protections were tuned around `Active Demand with Active Variability`, which is the method that excludes zero months for both mean and standard deviation before later protection rules adjust it.
+Meaning:
 
-## Step 8: Spike and Sparse-Demand Protections
+- mean excludes zero months
+- standard deviation excludes zero months
 
-These are the main anti-spike protections, in practical order:
+That method is deliberately aggressive about detecting "active" demand, which is why later protection rules are so important.
 
-1. Highest-month normalization
-- Always on
-- If there are at least 3 non-zero scoped months, the highest month is compared to the median of the other non-zero months
-- If it is above the configured threshold, it is reset to that baseline
+## Layer 8: Spike And Sparse-Demand Protection Ladder
 
-2. Two-point intermittent spike normalization
-- Used on `Active Demand with Active Variability`
-- If there are exactly 2 non-zero scoped months and the top month is at least `5x` the second month, the top month is reset to the second month
+This is the most important part of the model to understand.
 
-3. Intermittent branch protection
-- Used on non-DC branches for `Active Demand with Active Variability`
-- Fires when demand is sparse, for example:
-- 2 or fewer non-zero months
-- ADI >= 4
-- top 2 months >= 70% of scoped demand
-- Result: branch mean falls back to inclusive mean
+The protections are global conditional rules, not one-off item exceptions.
 
-4. Project spike suppression
-- Removes obvious one-time/project usage from both branch and DC replenishment logic
+### 1. Highest-month normalization
 
-5. Single-period pooling guard
-- If a branch has only 1 scoped selling month and the item still lacks enough repeat proof, that branch signal can affect the local branch floor but cannot create DC stock
+Always on.
 
-6. Sparse regional pool suppression
-- Thin regional branch spikes do not automatically create pooled DC stock unless the explicit regional-zero-max rule applies
+When there are at least 3 non-zero scoped months:
 
-7. DC sparse active-mean fallback
-- If the DC itself has only 1-2 non-zero scoped months and no branch pooling is creating the recommendation, the DC falls back from zero-excluded active mean to inclusive mean
+- compare the highest month to the median of the other non-zero months
+- if it is above the threshold, reset the highest month to the baseline month level
 
-## Step 9: Service Level and Protection Days
+Current default threshold:
 
-Default service levels:
+- `200%`
+
+Intent:
+
+- keep one big month from becoming the new normal
+
+### 2. Two-point intermittent spike normalization
+
+Used when there are exactly 2 non-zero scoped months and the top month is much larger.
+
+Current trigger:
+
+- top month is at least `5x` the second month
+
+Action:
+
+- reset the top month to the second month for scoped calculations
+
+Intent:
+
+- fix `220 + 20` type patterns without suppressing the item entirely
+
+### 3. Intermittent branch protection
+
+Used on non-DC branches for the active-demand method.
+
+Typical triggers:
+
+- `2` or fewer non-zero months
+- `ADI >= 4`
+- top 2 months hold at least `70%` of scoped demand
+
+Action:
+
+- stop trusting the zero-excluded active mean
+- fall back to an inclusive mean
+
+Intent:
+
+- prevent isolated branch hits from looking like steady branch demand
+
+### 4. Project-spike suppression
+
+Used for obvious one-time non-replenishment usage.
+
+Intent:
+
+- remove project or job hits from both branch and DC replenishment math
+
+### 5. Single-period pool guard
+
+Used when a non-regional branch has only one scoped selling month and the item still lacks repeat proof.
+
+Action:
+
+- branch can influence its local floor
+- branch cannot create pooled DC stock
+
+Intent:
+
+- stop one thin branch hit from seeding network stock
+
+### 6. Sparse regional pool suppression
+
+Used for thin `Regional` branch signals that are too sparse to justify pooled DC uncertainty.
+
+Intent:
+
+- let the explicit regional policy remain in force
+- avoid exaggerating thin regional branch noise
+
+### 7. DC sparse active-mean fallback
+
+Used when the DC itself has only `1-2` non-zero scoped months and no pooled branch stock is creating the recommendation.
+
+Action:
+
+- fall back from zero-excluded active mean to inclusive mean
+
+Intent:
+
+- keep the DC from overreacting to a single isolated selling month
+
+## Layer 9: Service Levels And Protection Days
+
+The model translates monthly demand into protected-cycle coverage.
+
+Core rules:
+
+- `raw protection days = lead time + frequency`
+- if raw protection days are below `28`, use `28`
+- `Local` frequency is treated as `4 weeks`
+
+Service level is driven by `ABC`:
 
 - `A = 99%`
 - `B = 92%`
@@ -175,132 +378,190 @@ Default service levels:
 - `E = 80%`
 - `X = 80%`
 
-Users can change these in the dashboard.
+Those percentages are user-editable in the dashboard.
 
-Protection days:
+## Layer 10: Base Min / Max Floors
 
-- `raw protection days = lead time + frequency`
-- if that is below 28, use 28
-- `Local` frequency is treated as 4 weeks
+Important internal calculations:
 
-## Step 10: Min / Max Floors
-
-Base calculations are:
-
-- `daily demand = monthly demand / 30.4375`
-- `lead time demand = daily demand * lead time days`
-- `protected cycle demand = daily demand * protection days`
+- `daily_demand = monthly_demand / 30.4375`
+- `lead_time_demand = daily_demand * lead_time_days`
+- `protected_cycle_demand = daily_demand * protection_days`
 
 Branch min:
 
-- branch min uses demand-only lead-time coverage
+- demand-only branch floor
 
 DC min:
 
-- DC min uses only the DC's own protected-cycle demand
-- DC min does not include branch deviation stock
+- only covers the DC's own need across the protected cycle
+- does not directly carry branch deviation stock
 
-Order-up-to floors:
+Branch/DC max:
 
-- demand-only order-up-to
-- service-level order-up-to using ABC z-score and variability
+- built from demand-only order-up-to plus service-level / variance logic
 
-## Step 11: Branch Recommendation Logic
+## Layer 11: Branch Logic
 
-Branch rows use these ideas:
+For branch locations, the engine generally does this:
 
-- start with a branch base recommendation from current max and rounded demand
-- apply policy order-up-to and min floors
-- if branch variability is not kept local, only the pooled-variance portion normally moves to the DC
-- direct intermittent transfer to the DC is only allowed when an explicit spike rule fired
+1. estimate a branch demand signal
+2. apply any spike / intermittent corrections
+3. build a branch max from local need
+4. decide what uncertainty stays local versus what is pooled
 
-## Step 12: DC / Balancing Logic
+Current pooling behavior:
 
-For hub-managed suppliers, the designated DC is the balancing location.
+- ordinary intermittent branches pool variance only
+- direct transfer to the DC is only allowed when an explicit spike rule fired
 
-The DC max is built from:
+This was a deliberate change to stop every intermittent branch from linearly inflating the DC.
 
-- its own rounded demand
-- minus branch max already being held at branches
-- plus the largest location deviation
-- plus pooled branch protection
+## Layer 12: DC / Balancing Logic
 
-Pooled branch protection uses:
+For hub-managed suppliers, the DC is also the balancing location.
+
+The DC recommendation is built from:
+
+- the DC's own rounded demand
+- branch max already being held elsewhere
+- the largest location deviation
+- pooled branch uncertainty
+
+Pooled branch uncertainty now uses:
 
 - pooled variance via root-sum-square
-- direct transfer only for explicit spike cases or allowed blocked-stock transfers
+- direct transfer only when an explicit spike rule allows it
 
-## Step 13: Stocking-Footprint Rules
+This is more stable than summing every branch deviation directly.
 
-These rules control where stock is allowed to exist:
+## Layer 13: Stocking-Footprint Rules
 
-- New branch stock requires:
+These are policy rules, not forecasting rules.
+
+### New branch stock gate
+
+To create a new stocking branch from `current max = 0`, the item must show:
+
 - more than 2 selling months in the last 12 months
-- at least 3 currently stocked locations
+- at least 3 stocked locations already
 
-- If `Status` contains `Regional` and branch `current max = 0`:
-- the branch stays non-stocked
-- the signal is intentionally handled through the DC
+### Regional zero-max branch rule
 
-- If an item is currently stocked at exactly one non-DC location, the DC has max 0, and status is not Regional:
-- that stocked branch keeps its own need
-- no other branch can create DC stock
-- the DC is held at 0
+If status contains `Regional` and a branch currently has max `0`:
 
-- If `Stockable != Y` and `current max = 0`:
-- the location cannot seed a new branch max
-- the location cannot create DC pooling
+- that branch stays non-stocked
+- the signal is handled through the network policy, not by creating branch stock
 
-## Step 14: Cost / Supplier / Override Rules
+### Single-stocked-branch hold
 
-- If `MAC` is below the user-selected threshold, deviation stays local instead of being pooled to the DC
-- If `Override = Y`, recommended max is locked to current max
-- If `S. Min Amt > 0`, recommended max is floored up to at least that supplier minimum
+If:
 
-## Step 15: Seasonal Ceiling Rule
+- status is not Regional
+- DC current max is `0`
+- exactly one non-DC location currently stocks the item
 
-For sparse seasonal items with long protection windows, the model applies a company-level seasonal ceiling so a thin one-season pattern does not explode into a large network recommendation.
+Then:
+
+- that one stocked branch keeps its own need
+- other branches cannot create DC stock
+- the DC is held at `0`
+
+### Non-stockable location block
+
+If:
+
+- `Stockable != Y`
+- `current max = 0`
+
+Then:
+
+- that location cannot seed a new branch max
+- that location cannot create DC pooling
+
+## Layer 14: Cost, Override, And Supplier-Minimum Rules
+
+### Low-cost local deviation
+
+If `MAC` is below the configured cutoff:
+
+- deviation stays local instead of being pooled to the DC
+
+Current default:
+
+- `$1.00`
+
+### Override
+
+If `Override = Y`:
+
+- recommended max is locked to current max
+
+### Supplier minimum amount
+
+If `S. Min Amt > 0` and the row still has a positive recommendation:
+
+- final recommended max must be at least `S. Min Amt`
+
+This floor is now enforced late enough that later trimming logic does not accidentally knock a positive max back below the supplier minimum.
+
+## Layer 15: Sparse Seasonal Company Ceiling
+
+This is a company-level protection.
+
+When a seasonal item has:
+
+- thin seasonal history
+- very few active in-season months
+- a long protection window
+
+the model can cap the network total so one sparse selling season does not explode into a large stocking recommendation.
 
 ## Outputs
 
-For each location, the model outputs:
+For each location, the engine emits:
 
-- recommended min
-- recommended max
-- change from current min/max
-- explanation fields showing which rules fired
+- `recommended_min_amount`
+- `recommended_new_max`
+- min/max deltas versus current values
+- key intermediate values
+- rule-hit flags
+- a plain-English explanation
 
-For each item, the model outputs:
+For each item summary, it emits:
 
-- current total min/max
-- recommended total min/max
-- total DC pool input
-- counts of rule hits such as outlier normalization, project suppression, branch-stock gate, and DC fallback
+- total current min/max
+- total recommended min/max
+- pooled-to-DC and absorbed-by-DC totals
+- counts of important rule hits
 
-## Key Principle for Reimplementation
+## What Another Team Should Reproduce First
 
-This model is best understood as:
+If another team is reimplementing this engine, the best order is:
 
-- a demand estimator
-- plus a large deterministic rules layer
-- plus a stocking-footprint policy layer
+1. raw-data normalization
+2. negative-return netting
+3. reference-window choice
+4. season scoping and seasonal ramp
+5. spike-protection ladder
+6. branch/DC pooling logic
+7. stocking-footprint policy rules
+8. final floors such as overrides and supplier minimums
 
-If another team wants to replicate it, they should not train a single model to "guess min/max" directly first. The best way to reproduce behavior is:
+Do not start by training a single model to imitate the final max directly without reproducing the intermediate rule logic.
 
-1. reproduce the row-level demand signal
-2. reproduce the spike protections
-3. reproduce branch/DC pooling and stocking-footprint rules
-4. only then compare final min/max results
+## Plain-English Summary
 
-## Practical Summary
+The engine is designed to be skeptical of isolated demand.
 
-The model is conservative about holding true replenishment stock, but increasingly aggressive about rejecting bad signals:
+In practice that means:
 
 - returns do not count as demand
-- sparse spikes are normalized or suppressed
-- ordinary intermittent demand usually pools only variance, not direct stock
-- non-stockable locations cannot create stock
-- single stocked branch items stay local unless explicitly Regional
-- supplier-specific hub policy overrides are respected
+- one big month is often normalized
+- two-point spikes are flattened
+- one-time project usage is suppressed
+- thin branch signals usually do not create DC stock
+- regional and stocking-footprint rules can override ordinary demand logic
+- supplier minimums and overrides still win at the end
 
-That is the current behavior the dashboard is implementing today.
+That is the current behavior the programmers should treat as the model's source of truth.

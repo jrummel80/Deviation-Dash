@@ -5,7 +5,7 @@ Chrome-friendly replenishment dashboard for reviewing raw item/location demand a
 ## What this version does
 
 - Imports the `Data` tab from the raw Excel workbook.
-- Recreates the three known recommendation methods from the planning workbook.
+- Runs the current replenishment rule engine, with `Active Demand with Active Variability` as the primary production method.
 - Shows supplier-aware item summaries and location-level recommendations.
 - Adds supplier-level ranking so you can see which suppliers have the biggest overall changes first.
 - Lets you drill into one item at a time to inspect monthly demand, intermediate calculations, and the balancing-location logic.
@@ -18,10 +18,24 @@ Chrome-friendly replenishment dashboard for reviewing raw item/location demand a
 ## Assumptions in this first build
 
 - The raw workbook matches the current `Data` tab shape from `Deviation.xlsx`.
-- Locations are evaluated in this order: `1, 115, 116, 117, 118, 119, 30, 40`.
+- Locations are evaluated in this order: `1, 30, 40, 115, 116, 117, 118, 119`.
 - The first location in that ordered set acts as the balancing location, matching the Excel model tab pattern.
 - Recommendations are grouped by `Supplier + Item`, so multiple suppliers can be loaded in the same file.
 - Product-group trends prefer `Supplier + Prod Group` history and fall back to all-supplier `Prod Group` history when needed.
+
+## Programmer Guides
+
+The main technical docs are:
+
+- [docs/model_overview_for_programmers.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/model_overview_for_programmers.md)
+- [docs/representative_model_variations_for_ai_team.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/representative_model_variations_for_ai_team.md)
+- [docs/how_to_train_other_models_from_deviation_dash.md](D:/OneDrive%20-%20R&E%20Supply/Apps/Deviation%20Dash/docs/how_to_train_other_models_from_deviation_dash.md)
+
+Suggested reading order:
+
+1. model overview
+2. representative cases
+3. training guide
 
 ## Run locally on Windows
 
